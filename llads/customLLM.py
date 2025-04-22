@@ -26,6 +26,7 @@ class customLLM(LLM):
     _client: OpenAI = PrivateAttr()
     _data: dict = PrivateAttr()
     _system_prompts: pd.DataFrame = PrivateAttr()
+    _query_results: list = PrivateAttr()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -36,6 +37,7 @@ class customLLM(LLM):
         )
 
         self._data = {}
+        self._query_results = {}
 
     @property
     def _llm_type(self) -> str:
@@ -183,70 +185,96 @@ class customLLM(LLM):
         plot_tools=None,
         validate=True,
         use_free_plot=False,
+        n_retries=5,
         quiet=False,
     ):
         "run the entire pipeline from one function"
         # raw data call
         if not (quiet):
             print("Determining which tools to use...")
-        try:
-            tool_result = self.gen_tool_call(
-                tools=tools,
-                prompt=prompt,
-            )
-        except:
-            print(
-                "An error occurred during the tool determination step. Please try again or reformulate your query."
-            )
+        attempts = 0
+        while attempts < n_retries:
+            try:
+                tool_result = self.gen_tool_call(
+                    tools=tools,
+                    prompt=prompt,
+                )
+                attempts = n_retries
+            except Exception:
+                attempts += 1
+                if attempts == n_retries:
+                    print(
+                        "An error occurred during the tool determination step. Please try again or reformulate your query."
+                    )
 
         # pandas manipulation
         if not (quiet):
             print("Transforming the data...")
-        try:
-            result = self.gen_pandas_df(
-                tools=tools, tool_result=tool_result, prompt=prompt
-            )
-        except:
-            print(
-                "An error occurred during the data transformation step. Please try again or reformulate your query."
-            )
+        attempts = 0
+        while attempts < n_retries:
+            try:
+                result = self.gen_pandas_df(
+                    tools=tools, tool_result=tool_result, prompt=prompt
+                )
+                attempts = n_retries
+            except Exception:
+                attempts += 1
+                if attempts == n_retries:
+                    print(
+                        "An error occurred during the data transformation step. Please try again or reformulate your query."
+                    )
 
         # explanation of pandas manipulation
         if not (quiet):
             print("Explaining the transformations...")
-        try:
-            explanation = self.explain_pandas_df(result, prompt=prompt)
-        except:
-            print(
-                "An error occurred during the data explanation step. Please try again or reformulate your query."
-            )
+        attempts = 0
+        while attempts < n_retries:
+            try:
+                explanation = self.explain_pandas_df(result, prompt=prompt)
+                attempts = n_retries
+            except Exception:
+                attempts += 1
+                if attempts == n_retries:
+                    print(
+                        "An error occurred during the data explanation step. Please try again or reformulate your query."
+                    )
 
         # commentary on the result
         if not (quiet):
             print("Generating commentary...")
-        try:
-            commentary = self.gen_final_commentary(
-                tool_result, prompt=prompt, validate=validate
-            )
-        except:
-            print(
-                "An error occurred during the commentary step. Please try again or reformulate your query."
-            )
+        attempts = 0
+        while attempts < n_retries:
+            try:
+                commentary = self.gen_final_commentary(
+                    tool_result, prompt=prompt, validate=validate
+                )
+                attempts = n_retries
+            except Exception:
+                attempts += 1
+                if attempts == n_retries:
+                    print(
+                        "An error occurred during the commentary step. Please try again or reformulate your query."
+                    )
 
         # generating a plot
         if not (quiet):
             print("Generating a visualization...")
-        try:
-            if use_free_plot:
-                plots = self.gen_free_plot(tool_result=tool_result, prompt=prompt)
-            else:
-                plots = self.gen_plot_call(
-                    tools=plot_tools, tool_result=tool_result, prompt=prompt
-                )
-        except:
-            print(
-                "An error occurred during the data visualization step. Please try again or reformulate your query."
-            )
+        attempts = 0
+        while attempts < n_retries:
+            try:
+                if use_free_plot:
+                    plots = self.gen_free_plot(tool_result=tool_result, prompt=prompt)
+                else:
+                    plots = self.gen_plot_call(
+                        tools=plot_tools, tool_result=tool_result, prompt=prompt
+                    )
+                attempts = n_retries
+            except Exception:
+                attempts += 1
+                if attempts == n_retries:
+                    print(
+                        "An error occurred during the data visualization step. Please try again or reformulate your query."
+                    )
 
         return {
             "initial_prompt": prompt,
@@ -265,17 +293,20 @@ class customLLM(LLM):
         plot_tools=None,
         validate=True,
         use_free_plot=False,
-        complete_responses=None,
+        prior_query_id=None,
+        n_retries=5,
         quiet=False,
     ):
         "same as gen_complete_response, but if given a list of complete responses, generate a followup context-rich prompt given a new prompt first"
-        if complete_responses is None:
+        context_query_ids = []  # which prior queries went into this context
+        if prior_query_id is None:
             result = self.gen_complete_response(
                 prompt=prompt,
                 tools=tools,
                 plot_tools=plot_tools,
                 validate=validate,
                 use_free_plot=use_free_plot,
+                n_retries=n_retries,
                 quiet=quiet,
             )
         else:
@@ -287,7 +318,17 @@ class customLLM(LLM):
                 .format(prompt=prompt)
             )
 
+            # dynamically calculating prior messages given only the prior query id
+            prior_query_ids = [prior_query_id] + self._query_results[prior_query_id][
+                "context_query_ids"
+            ]
+            complete_responses = [self._query_results[_] for _ in prior_query_ids]
+
             for i in range(len(complete_responses)):
+                context_query_ids.append(
+                    complete_responses[i]["tool_result"]["query_id"]
+                )
+
                 # reiteration of old prompt
                 ex_num = i + 1
 
@@ -314,13 +355,19 @@ class customLLM(LLM):
                 plot_tools=plot_tools,
                 validate=validate,
                 use_free_plot=use_free_plot,
+                n_retries=n_retries,
                 quiet=quiet,
             )
 
-        if complete_responses is None:
+        if prior_query_id is None:
             result["context_rich_prompt"] = ""
         else:
             result["initial_prompt"] = prompt
             result["context_rich_prompt"] = context_rich_prompt
+
+        result["context_query_ids"] = context_query_ids
+
+        # saving result
+        self._query_results[result["tool_result"]["query_id"]] = result
 
         return result

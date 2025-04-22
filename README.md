@@ -38,32 +38,28 @@ plot_tools = [gen_plot]
 
 # generating a response
 prompt = "What is the GDP of Italy and the UK as a % of Germany over the last 5 years?" # the user's initial question
-
-messages = [] # initializing our message history
-messages.append(
-	llm.chat(
-		prompt=prompt, 
-		tools=tools, 
-		plot_tools=plot_tools, 
-		validate=True, # if True, the LLM will perform an additional validation step on its commentary
-		use_free_plot=False, # if False, the LLM will have to use one of the plot_tools, if True, it will be free to make its own matplotlib plot
-		complete_responses=None, # None, because this is the first query in the chat history
-	)
+results = llm.chat(
+	prompt=prompt, 
+	tools=tools, 
+	plot_tools=plot_tools, 
+	validate=True, # if True, the LLM will perform an additional validation step on its commentary
+	use_free_plot=False, # if False, the LLM will have to use one of the plot_tools, if True, it will be free to make its own matplotlib plot
+	prior_query_id=None, # None, because this is the first query in the chat history
 )
 
 # follow-up question
 new_query = "Add France to the analysis"
-
-messages.append(
-	llm.chat(
-		prompt=new_query, 
-		tools=tools, 
-		plot_tools=plot_tools, 
-		validate=True,
-		use_free_plot=False,
-		complete_responses=messages, # adding our message history
-	)
+followup_result = llm.chat(
+	prompt=new_query, 
+	tools=tools, 
+	plot_tools=plot_tools, 
+	validate=True,
+	use_free_plot=False,
+	prior_query_id=results["tool_result"]["query_id"], # pass our prior query id to make message history available
 )
+
+# you can access prior query results via the query id
+llm._query_results[query_id]
 ```
 
 ### Interpreting output
