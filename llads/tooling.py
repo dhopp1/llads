@@ -114,7 +114,7 @@ You are given this initial prompt (the current date is {date_string}): {prompt}
     
 You have the following datasets available to you: {data_dict_desc}
 
-Using Pandas, manipulate the dataset so that you can best answer the initial prompt. Save the output in a variable called 'self._data["{tool_result['query_id']}_result"]'. Output only Python code.
+Using Pandas, manipulate the dataset so that you can best answer the initial prompt. Create the output dataset in long format. Save the output in a variable called 'self._data["{tool_result['query_id']}_result"]'. Output only Python code.
 """
 
     return {

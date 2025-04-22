@@ -1,3 +1,4 @@
+import datetime
 from pydantic import Field, PrivateAttr
 from typing import Any, List, Optional
 
@@ -6,6 +7,10 @@ from langchain.llms.base import LLM
 from openai import OpenAI
 
 from llads.tooling import create_final_pandas_instructions, gen_tool_call
+
+
+today = datetime.date.today()
+date_string = today.strftime("%Y-%m-%d")
 
 
 class customLLM(LLM):
@@ -90,3 +95,38 @@ Given that information, explain step by step what was done to end up with a fina
         explanation = self(instructions)
 
         return explanation
+
+    def gen_final_commentary(self, tool_result, prompt, validate=True):
+        "generate the final commentary on the dataset"
+        query_id = tool_result["query_id"]
+
+        # initial commentary
+        commentary_instructions = f"""
+The user asked this question (in case relevant, the current data is {date_string}): '{prompt}'
+
+Given this dataset, provide analysis and commentary on it that answers the user's question':
+    
+{self._data[f"{query_id}_result"].to_markdown(index=False)}
+"""
+        commentary = self(commentary_instructions)
+
+        # validation commentary
+        if validate:
+            validation_instructions = f"""
+The user asked this question (in case relevant, the current data is {date_string}): '{prompt}'
+
+An LLM was then asked to provide analysis and commentary on the below datset that answers the user's question'.
+
+The dataset is this:
+    
+{self._data[f"{query_id}_result"].to_markdown(index=False)}
+
+The commentary the LLM provided is this:
+    
+{commentary}
+
+Check that output for factual inaccuracies given the dataset and correct any. If there are no inaccuracies, then reproduce the LLM's commentary exactly. Produce only the corrected commentary or the original commentary, no discussion of mistakes found or of your task.
+"""
+            commentary = self(validation_instructions)
+
+        return commentary
