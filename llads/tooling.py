@@ -22,11 +22,11 @@ def gen_tool_call(llm, tools, prompt):
     # render tools as a string
     rendered_tools = render_text_description(tools)
 
-    system_prompt = f"""You are an assistant that has access to the following set of tools. The current date is {date_string}. Here are the names and descriptions for each tool:
-
-    {rendered_tools}
-
-    Given the user input, return the name and input of the tool to use. Return your response as a JSON blob with 'name' and 'arguments' keys and nothing else. If you need multiple tools to answer the user's query, return a list of JSON blobs for each tool"""
+    system_prompt = (
+        llm.system_prompts.loc[lambda x: x["step"] == "raw data tool call", "prompt"]
+        .values[0]
+        .format(date_string=date_string, rendered_tools=rendered_tools)
+    )
 
     # choosing tool call
     combined_prompt = ChatPromptTemplate.from_messages(
@@ -74,15 +74,17 @@ def gen_plot_call(llm, tools, tool_result, prompt):
     # render visualizations as a string
     rendered_tools = render_text_description(tools)
 
-    system_prompt = f"""You are an assistant that has access to the following set of visualization tools. Here are the names and descriptions for each tool:
-
-{rendered_tools}
-    
-This is the first five rows of the dataset available to you, named '{tool_result["query_id"]}_result.csv':
-    
-{llm._data[f'{tool_result["query_id"]}_result'].head().to_markdown(index=False)}
-
-Given the user input, return the name and input of the visualization tool to use. Return your response as a JSON blob with 'name' and 'arguments' keys and nothing else. If you need multiple visualizations to answer the user's query, return a list of JSON blobs for each visualization tool."""
+    system_prompt = (
+        llm.system_prompts.loc[lambda x: x["step"] == "plot tool call", "prompt"]
+        .values[0]
+        .format(
+            rendered_tools=rendered_tools,
+            csv_path=f'{tool_result["query_id"]}_result.csv',
+            markdown_result_df=llm._data[f'{tool_result["query_id"]}_result']
+            .head()
+            .to_markdown(index=False),
+        )
+    )
 
     # choosing tool call
     combined_prompt = ChatPromptTemplate.from_messages(

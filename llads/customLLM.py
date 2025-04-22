@@ -1,4 +1,5 @@
 import datetime
+import pandas as pd
 from pydantic import Field, PrivateAttr
 from typing import Any, List, Optional
 
@@ -17,12 +18,14 @@ class customLLM(LLM):
     api_key: str = Field(...)
     base_url: str = Field(...)
     model_name: str = Field(...)
-    system_prompt: str = "you are a chatbot"
+    system_prompts: pd.DataFrame = Field(...)
+    system_prompt: str = ""  # for every call
     temperature: float = 0.0
     max_tokens: int = 2048
 
     _client: OpenAI = PrivateAttr()
     _data: dict = PrivateAttr()
+    _system_prompts: pd.DataFrame = PrivateAttr()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

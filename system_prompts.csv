@@ -1,0 +1,70 @@
+step,prompt,variables,descriptionraw data tool call,"You are an assistant that has access to the following set of tools. The current date is {date_string}. Here are the names and descriptions for each tool:
+
+{rendered_tools}
+
+Given the user input, return the name and input of the tool to use. Return your response as a JSON blob with 'name' and 'arguments' keys and nothing else. 
+If you need multiple tools to answer the user's query, return a list of JSON blobs for each tool.","date_string: today's date in YYYY-MM-DD format
+rendered_tools: string describing the inputs and outputs of each tool","in this step, given the raw data calls available to it, the LLM decides which ones to use with which parameters."plot tool call,"You are an assistant that has access to the following set of visualization tools. Here are the names and descriptions for each tool:
+
+{rendered_tools}
+    
+This is the first five rows of the dataset available to you, named '{csv_path}':
+    
+{markdown_result_df}
+
+Given the user input, return the name and input of the visualization tool to use. Return your response as a JSON blob with 'name' and 'arguments' keys and nothing else. If you need multiple visualizations to answer the user's query, return a list of JSON blobs for each visualization tool.","rendered_tools: string describing the inputs and outputs of each visualization tool
+csv_path: the temporary csv path of the result dataset, to provide access to the plotting function
+markdown_result_df: the result dataset in markdown format","in this step, the LLM decides which plotting functions to call with which parameters"generate call description,"Result of function name: {name},
+
+With function arguments: {arguments}
+
+The function's docstring: {tool_desc}
+
+The contents of the first couple rows of the dataset: 
+    
+{actual_data}","name: the name of the function called
+arguments: the arguments of the function called
+tool_desc: the docstring of the function called
+actual_data: the actual .head() of the resultant dataset",intermediate step which produces a description of a called function call and resultdata dictionary intro,You have the following data available to you:\n\n,,introduction for the step where it is described to the LLM what information it has available to it as a result of the tool callsdata dictionary body,"Information on the variable named '{intermediate_dataset_name}':
+    
+{tool_descriptions}
+
+----next dataset-------
+ ","intermediate_dataset_name: the name of where the intermeidate result datasets reside, like 'self._data[hash_0]', etc.
+tool_descriptions: list comprehension of the call descriptions",looped body for the step where it is described to the LLM what information it has available to it as a result of the tool callspandas manipulation call,"You are given this initial prompt (the current date is {date_string}): {prompt}
+    
+You have the following datasets available to you: {data_dict_desc}
+
+Using Pandas, manipulate the dataset so that you can best answer the initial prompt. Create the output dataset in long format. Save the output in a variable called '{result_dataset_name}'. Output only Python code.","date_string: today's date in YYYY-MM-DD format
+prompt: the user's initial prompt
+rendered_tools: string describing the inputs and outputs of each tool
+data_dict_desc: the data dictionary intro and body describing the results of the tool calls available to the LLM",instructions for manipulating the intermediate datasets in pandas to create a single final result datasetpandas explanation call,"An LLM was given this initial prompt to answer: {prompt}
+
+It was given this raw data to answer it: {data_desc}
+
+It then used that raw data to generate this Pandas code: {pd_code}
+
+Given that information, explain step by step what was done to end up with a final dataset that best answers the original prompt. Don't go into the details of code calls, just give higher-level overviews of steps taken.","prompt: the user's initial prompt
+data_desc: data dictionary intro + body
+pd_code: the pandas code resulting from the pandas manipulation call",instructions to produce an explanation of the tool calls + pandas manipulation used to create the final results datasetinitial commentary call,"The user asked this question (in case relevant, the current data is {date_string}): '{prompt}'
+
+Given this dataset, provide analysis and commentary on it that answers the user's question':
+    
+{result_df_markdown}","date_string: today's date in YYYY-MM-DD format
+prompt: the user's initial prompt
+result_df_markdown: the final results dataframe in markdown",validation commentary call,"The user asked this question (in case relevant, the current data is {date_string}): '{prompt}'
+
+An LLM was then asked to provide analysis and commentary on the below datset that answers the user's question'.
+
+The dataset is this:
+    
+{result_df_markdown}
+
+The commentary the LLM provided is this:
+    
+{commentary}
+
+Check that output for factual inaccuracies given the dataset and correct any. If there are no inaccuracies, then reproduce the LLM's commentary exactly. Produce only the corrected commentary or the original commentary, no discussion of mistakes found or of your task.","date_string: today's date in YYYY-MM-DD format
+prompt: the user's initial prompt
+result_df_markdown: the final results dataframe in markdown
+commentary: the initial commentary from the first LLM call",
