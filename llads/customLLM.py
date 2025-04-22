@@ -70,9 +70,7 @@ class customLLM(LLM):
 
     def gen_pandas_df(self, tools, tool_result, prompt):
         "execute pandas manipulations to answer prompt"
-        result = create_final_pandas_instructions(
-            self._data, tools, tool_result, prompt
-        )
+        result = create_final_pandas_instructions(self, tools, tool_result, prompt)
         llm_call = (
             self(result["pd_instructions"]).split("```python")[1].replace("```", "")
         )
@@ -85,15 +83,18 @@ class customLLM(LLM):
 
     def explain_pandas_df(self, result, prompt):
         "explain steps taken for data manipulation"
-        instructions = f"""
-An LLM was given this initial prompt to answer: {prompt}
 
-It was given this raw data to answer it: {result["data_desc"]}
-
-It then used that raw data to generate this Pandas code: {result["pd_code"]}
-
-Given that information, explain step by step what was done to end up with a final dataset that best answers the original prompt. Don't go into the details of code calls, just give higher-level overviews of steps taken.
-"""
+        instructions = (
+            self.system_prompts.loc[
+                lambda x: x["step"] == "pandas explanation call", "prompt"
+            ]
+            .values[0]
+            .format(
+                prompt=prompt,
+                data_desc=result["data_desc"],
+                pd_code=result["pd_code"],
+            )
+        )
 
         explanation = self(instructions)
 
@@ -104,32 +105,37 @@ Given that information, explain step by step what was done to end up with a fina
         query_id = tool_result["query_id"]
 
         # initial commentary
-        commentary_instructions = f"""
-The user asked this question (in case relevant, the current data is {date_string}): '{prompt}'
-
-Given this dataset, provide analysis and commentary on it that answers the user's question':
-    
-{self._data[f"{query_id}_result"].to_markdown(index=False)}
-"""
+        commentary_instructions = (
+            self.system_prompts.loc[
+                lambda x: x["step"] == "initial commentary call", "prompt"
+            ]
+            .values[0]
+            .format(
+                date_string=date_string,
+                prompt=prompt,
+                result_df_markdown=self._data[f"{query_id}_result"].to_markdown(
+                    index=False
+                ),
+            )
+        )
         commentary = self(commentary_instructions)
 
         # validation commentary
         if validate:
-            validation_instructions = f"""
-The user asked this question (in case relevant, the current data is {date_string}): '{prompt}'
-
-An LLM was then asked to provide analysis and commentary on the below datset that answers the user's question'.
-
-The dataset is this:
-    
-{self._data[f"{query_id}_result"].to_markdown(index=False)}
-
-The commentary the LLM provided is this:
-    
-{commentary}
-
-Check that output for factual inaccuracies given the dataset and correct any. If there are no inaccuracies, then reproduce the LLM's commentary exactly. Produce only the corrected commentary or the original commentary, no discussion of mistakes found or of your task.
-"""
+            validation_instructions = (
+                self.system_prompts.loc[
+                    lambda x: x["step"] == "initial commentary call", "prompt"
+                ]
+                .values[0]
+                .format(
+                    date_string=date_string,
+                    prompt=prompt,
+                    result_df_markdown=self._data[f"{query_id}_result"].to_markdown(
+                        index=False
+                    ),
+                    commentary=commentary,
+                )
+            )
             commentary = self(validation_instructions)
 
         return commentary

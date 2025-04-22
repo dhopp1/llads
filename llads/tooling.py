@@ -120,7 +120,7 @@ def gen_plot_call(llm, tools, tool_result, prompt):
     }
 
 
-def gen_description(tool, tool_call, invoked_result):
+def gen_description(llm, tool, tool_call, invoked_result):
     "generate a full description of a single tool and result"
     # metadata
     name = tool_call["name"]
@@ -131,21 +131,23 @@ def gen_description(tool, tool_call, invoked_result):
     actual_data = invoked_result.head().to_markdown(index=False)
 
     # final prompt
-    desc = f"""
-Result of function name: {name},
+    desc = (
+        llm.system_prompts.loc[
+            lambda x: x["step"] == "generate call description", "prompt"
+        ]
+        .values[0]
+        .format(
+            name=name,
+            arguments=arguments,
+            tool_desc=tool_desc,
+            actual_data=actual_data,
+        )
+    )
 
-With function arguments: {arguments}
-
-The function's docstring: {tool_desc}
-
-The contents of the first couple rows of the dataset: 
-    
-{actual_data}
-"""
     return desc
 
 
-def create_data_dictionary(data, tools, tool_result):
+def create_data_dictionary(llm, data, tools, tool_result):
     "given the result of a tool call, create data dictionary so the LLM can access the resulting data"
 
     # creating the data dictionary
@@ -153,30 +155,47 @@ def create_data_dictionary(data, tools, tool_result):
         data[f"{tool_result['query_id']}_{i}"] = tool_result["invoked_result"][i]
 
     # looping through and creating the input for the LLM
-    instructions = "You have the following data available to you:\n\n"
+    instructions = llm.system_prompts.loc[
+        lambda x: x["step"] == "data dictionary intro", "prompt"
+    ].values[0]
     for i in range(len(tool_result["tool_call"])):
-        instructions += f"""
-Information on the variable named 'self._data["{tool_result['query_id']}_{i}"]':
-    
-{gen_description([_ for _ in tools if _.name == tool_result["tool_call"][i]["name"]], tool_result["tool_call"][i], tool_result["invoked_result"][i])}
+        intermediate_dataset_name = f"""self._data["{tool_result['query_id']}_{i}"]"""
+        tool_descriptions = gen_description(
+            llm,
+            [_ for _ in tools if _.name == tool_result["tool_call"][i]["name"]],
+            tool_result["tool_call"][i],
+            tool_result["invoked_result"][i],
+        )
 
-----next dataset-------
-   
-"""
+        instructions += (
+            llm.system_prompts.loc[
+                lambda x: x["step"] == "data dictionary body", "prompt"
+            ]
+            .values[0]
+            .format(
+                intermediate_dataset_name=intermediate_dataset_name,
+                tool_descriptions=tool_descriptions,
+            )
+        )
     return instructions
 
 
-def create_final_pandas_instructions(data, tools, tool_result, prompt):
+def create_final_pandas_instructions(llm, tools, tool_result, prompt):
     "create final prompt for the LLM to manipulate the Pandas data"
-    data_dict_desc = create_data_dictionary(data, tools, tool_result)
+    data_dict_desc = create_data_dictionary(llm, llm._data, tools, tool_result)
 
-    instructions = f"""
-You are given this initial prompt (the current date is {date_string}): {prompt}
-    
-You have the following datasets available to you: {data_dict_desc}
-
-Using Pandas, manipulate the dataset so that you can best answer the initial prompt. Create the output dataset in long format. Save the output in a variable called 'self._data["{tool_result['query_id']}_result"]'. Output only Python code.
-"""
+    instructions = (
+        llm.system_prompts.loc[
+            lambda x: x["step"] == "pandas manipulation call", "prompt"
+        ]
+        .values[0]
+        .format(
+            date_string=date_string,
+            prompt=prompt,
+            data_dict_desc=data_dict_desc,
+            result_dataset_name=f"""self._data["{tool_result['query_id']}_result"]""",
+        )
+    )
 
     return {
         "data_desc": data_dict_desc,
