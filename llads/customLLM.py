@@ -6,7 +6,7 @@ from langchain.callbacks.manager import CallbackManagerForLLMRun
 from langchain.llms.base import LLM
 from openai import OpenAI
 
-from llads.tooling import create_final_pandas_instructions, gen_tool_call
+from llads.tooling import create_final_pandas_instructions, gen_plot_call, gen_tool_call
 
 
 today = datetime.date.today()
@@ -130,3 +130,13 @@ Check that output for factual inaccuracies given the dataset and correct any. If
             commentary = self(validation_instructions)
 
         return commentary
+
+    def gen_plot_call(self, tools, tool_result, prompt):
+        "generate a visual aid plot"
+
+        plot_result = gen_plot_call(self, tools, tool_result, prompt)
+
+        return {
+            "visualization_call": plot_result["visualiation_call"],
+            "plots": plot_result["invoked_result"],
+        }
