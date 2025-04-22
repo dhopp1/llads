@@ -89,7 +89,7 @@ The `chat()` function will produce a dictionary with the following values:
 5. If `validate=True` in the `llm.gen_final_commentary()` call, the LLM performs a validation step on its commentary to look for and correct errors.
 6. The LLM produces a visualization to help answer the user's question, via either the `llm.gen_free_plot()` function (if `use_free_plot=True`) or the `llm.gen_plot_call()` function. The former allows the LLM to create any Matplotlib plot, the latter restricts it to calling one of the predefined visualization tools. Useful if you want to customize style, etc.
 
-If `complete_responses` is not `None`, i.e., a message history is passed, at the very beginning of the pipeline the user's prompt will be augmented with the full context history of previous messages, includding tool calls, data manipulation steps, commentary provided, and visualizations created.
+If a `prior_query_id` is passed, at the very beginning of the pipeline the user's prompt will be augmented with the full context history of previous messages, including tool calls, data manipulation steps, commentary provided, and visualizations created.
 
 ## Defining your own datasets/tools
 The library contains the `get_world_bank_gdp_data` function as an example. To make additional data available to the LLM, you can define your own tools. For example, say we wanted to add a simple addition tool:
