@@ -149,3 +149,29 @@ class customLLM(LLM):
             "visualization_call": plot_result["visualiation_call"],
             "plots": plot_result["invoked_result"],
         }
+
+    def gen_free_plot(self, tool_result, prompt):
+        "give more freedom to the LLM to produce whatever plot it wants with matplotlib"
+
+        query_id = tool_result["query_id"]
+
+        instructions = (
+            self.system_prompts.loc[
+                lambda x: x["step"] == "free plot tool call", "prompt"
+            ]
+            .values[0]
+            .format(
+                prompt=prompt,
+                result_df_name=f"self._data[{query_id}_result]",
+                markdown_result_df=self._data[f"{query_id}_result"],
+                plot_name=f"_{query_id.replace('-', '_')}_plot",
+            )
+        )
+
+        plot_call = self(instructions).split("```python")[1].replace("```", "")
+        exec(plot_call)
+
+        return {
+            "visualization_call": plot_call,
+            "invoked_result": eval(f"_{query_id.replace('-', '_')}_plot"),
+        }

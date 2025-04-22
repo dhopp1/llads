@@ -17,6 +17,16 @@ This is the first five rows of the dataset available to you, named '{csv_path}':
 Given the user input, return the name and input of the visualization tool to use. Return your response as a JSON blob with 'name' and 'arguments' keys and nothing else. If you need multiple visualizations to answer the user's query, return a list of JSON blobs for each visualization tool.","rendered_tools: string describing the inputs and outputs of each visualization tool
 csv_path: the temporary csv path of the result dataset, to provide access to the plotting function
 markdown_result_df: the result dataset in markdown format","in this step, the LLM decides which plotting functions to call with which parameters"
+free plot tool call,"You are an assistant that has access to the dataset called {result_df_name}. You are trying to answer this question: {prompt}.
+
+This is the first five rows of the dataset:
+
+{markdown_result_df}
+
+Use matplotlib to create a visualization that best illustrates an answer to the user's question. Just save the figure in a variable called {plot_name}, don't show it. Import any libraries you need at the top of your output.","prompt: the user's initial prompt
+result_df_name: the name of the result datset
+markdown_result_df: the result dataset in markdown format
+plot_name: the name of the resulting plot object",an alternative to plot tool call where the LLM can produce any matplotlib plot it wants
 generate call description,"Result of function name: {name},
 
 With function arguments: {arguments}
