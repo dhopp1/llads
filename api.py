@@ -43,7 +43,7 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/v1/chat/")
-async def vector_search(request: ChatRequest):
+async def chat(request: ChatRequest):
     results = llm.chat(
         prompt=request.prompt,
         tools=tools,
