@@ -66,11 +66,11 @@ data_desc: data dictionary intro + body
 pd_code: the pandas code resulting from the pandas manipulation call",instructions to produce an explanation of the tool calls + pandas manipulation used to create the final results dataset
 initial commentary call,"The user asked this question (in case relevant, the current data is {date_string}): '{prompt}'
 
-Given this dataset, provide analysis and commentary on it that answers the user's question':
+Given this dataset, provide analysis and commentary on it that answers the user's question'. Only give substantive commentary, don't talk about any coding done:
     
 {result_df_markdown}","date_string: today's date in YYYY-MM-DD format
 prompt: the user's initial prompt
-result_df_markdown: the final results dataframe in markdown",
+result_df_markdown: the final results dataframe in markdown",instructions to produce an initial commentary on the dataset answering the user's question
 validation commentary call,"The user asked this question (in case relevant, the current data is {date_string}): '{prompt}'
 
 An LLM was then asked to provide analysis and commentary on the below datset that answers the user's question'.
@@ -86,4 +86,23 @@ The commentary the LLM provided is this:
 Check that output for factual inaccuracies given the dataset and correct any. If there are no inaccuracies, then reproduce the LLM's commentary exactly. Produce only the corrected commentary or the original commentary, no discussion of mistakes found or of your task.","date_string: today's date in YYYY-MM-DD format
 prompt: the user's initial prompt
 result_df_markdown: the final results dataframe in markdown
-commentary: the initial commentary from the first LLM call",
+commentary: the initial commentary from the first LLM call",instructions to check the initial commentary for mistakes and fix them
+context rich prompt start,This is the user's follow-up question: '{prompt}'. Below is the context around the question.\n\n,prompt: the user's initial prompt,"for chat, the intro to the contextual information given"
+context rich prompt body,"Exchange {ex_num}:
+
+Initial user question: {initial_prompt}
+
+Description of data available: {data_desc}
+
+Data manipulation steps taken to answer user's question: {pd_code}
+
+Commentary produced to answer the user's question: {commentary}
+
+Code for visualization produced to answer the user's question: {visualization_code}
+
+-----next exchange------","ex_num: the number of this chat
+initial_prompt: the user's initial prompt
+data_desc: the description of the data given to the LLM
+pd_code: the pandas code the LLM ran to create the resulting dataset
+commentary: the LLM's commentary
+visualization_code: the code to produce the visualization","for chat, the body containing the context of previous chats"

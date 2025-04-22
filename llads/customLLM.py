@@ -177,32 +177,43 @@ class customLLM(LLM):
         }
 
     def gen_complete_response(
-        self, prompt, tools=None, plot_tools=None, validate=True, use_free_plot=False
+        self,
+        prompt,
+        tools=None,
+        plot_tools=None,
+        validate=True,
+        use_free_plot=False,
+        quiet=False,
     ):
         "run the entire pipeline from one function"
         # raw data call
-        print("Determining which tools to use...")
+        if not (quiet):
+            print("Determining which tools to use...")
         tool_result = self.gen_tool_call(
             tools=tools,
             prompt=prompt,
         )
 
         # pandas manipulation
-        print("Transforming the data...")
+        if not (quiet):
+            print("Transforming the data...")
         result = self.gen_pandas_df(tools=tools, tool_result=tool_result, prompt=prompt)
 
         # explanation of pandas manipulation
-        print("Explaining the transformations...")
+        if not (quiet):
+            print("Explaining the transformations...")
         explanation = self.explain_pandas_df(result, prompt=prompt)
 
         # commentary on the result
-        print("Generating commentary...")
+        if not (quiet):
+            print("Generating commentary...")
         commentary = self.gen_final_commentary(
             tool_result, prompt=prompt, validate=validate
         )
 
         # generating a plot
-        print("Generating a visualization...")
+        if not (quiet):
+            print("Generating a visualization...")
         if use_free_plot:
             plots = self.gen_free_plot(tool_result=tool_result, prompt=prompt)
         else:
@@ -211,6 +222,7 @@ class customLLM(LLM):
             )
 
         return {
+            "initial_prompt": prompt,
             "tool_result": tool_result,
             "pd_code": result,
             "dataset": self._data[f"{tool_result['query_id']}_result"],
@@ -218,3 +230,70 @@ class customLLM(LLM):
             "commentary": commentary,
             "plots": plots,
         }
+
+    def chat(
+        self,
+        prompt,
+        tools=None,
+        plot_tools=None,
+        validate=True,
+        use_free_plot=False,
+        complete_responses=None,
+        quiet=False,
+    ):
+        "same as gen_complete_response, but if given a list of complete responses, generate a followup context-rich prompt given a new prompt first"
+        if complete_responses is None:
+            result = self.gen_complete_response(
+                prompt=prompt,
+                tools=tools,
+                plot_tools=plot_tools,
+                validate=validate,
+                use_free_plot=use_free_plot,
+                quiet=quiet,
+            )
+        else:
+            context_rich_prompt = (
+                self.system_prompts.loc[
+                    lambda x: x["step"] == "context rich prompt start", "prompt"
+                ]
+                .values[0]
+                .format(prompt=prompt)
+            )
+
+            for i in range(len(complete_responses)):
+                # reiteration of old prompt
+                ex_num = i + 1
+
+                context_rich_prompt += (
+                    self.system_prompts.loc[
+                        lambda x: x["step"] == "context rich prompt body", "prompt"
+                    ]
+                    .values[0]
+                    .format(
+                        ex_num=ex_num,
+                        initial_prompt=complete_responses[i]["initial_prompt"],
+                        data_desc=complete_responses[i]["pd_code"]["data_desc"],
+                        pd_code=complete_responses[i]["pd_code"]["pd_code"],
+                        commentary=complete_responses[i]["commentary"],
+                        visualization_code=complete_responses[i]["plots"][
+                            "visualization_call"
+                        ][0],
+                    )
+                )
+
+            result = self.gen_complete_response(
+                prompt=context_rich_prompt,
+                tools=tools,
+                plot_tools=plot_tools,
+                validate=validate,
+                use_free_plot=use_free_plot,
+                quiet=quiet,
+            )
+
+        if complete_responses is None:
+            result["context_rich_prompt"] = ""
+        else:
+            result["initial_prompt"] = prompt
+            result["context_rich_prompt"] = context_rich_prompt
+
+        return result
