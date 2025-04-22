@@ -4,18 +4,6 @@ import requests
 
 
 @tool
-def add(first_int: int, second_int: int) -> int:
-    "Add two integers."
-    return first_int + second_int
-
-
-@tool
-def exponentiate(base: int, exponent: int) -> int:
-    "Exponentiate the base to the exponent power."
-    return base**exponent
-
-
-@tool
 def get_world_bank_gdp_data(
     country_code: str, start_year: int, end_year: int
 ) -> pd.DataFrame:

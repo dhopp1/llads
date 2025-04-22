@@ -172,6 +172,49 @@ class customLLM(LLM):
         exec(plot_call)
 
         return {
-            "visualization_call": plot_call,
-            "invoked_result": eval(f"_{query_id.replace('-', '_')}_plot"),
+            "visualization_call": [plot_call],
+            "invoked_result": [eval(f"_{query_id.replace('-', '_')}_plot")],
+        }
+
+    def gen_complete_response(
+        self, prompt, tools=None, plot_tools=None, validate=True, use_free_plot=False
+    ):
+        "run the entire pipeline from one function"
+        # raw data call
+        print("Determining which tools to use...")
+        tool_result = self.gen_tool_call(
+            tools=tools,
+            prompt=prompt,
+        )
+
+        # pandas manipulation
+        print("Transforming the data...")
+        result = self.gen_pandas_df(tools=tools, tool_result=tool_result, prompt=prompt)
+
+        # explanation of pandas manipulation
+        print("Explaining the transformations...")
+        explanation = self.explain_pandas_df(result, prompt=prompt)
+
+        # commentary on the result
+        print("Generating commentary...")
+        commentary = self.gen_final_commentary(
+            tool_result, prompt=prompt, validate=validate
+        )
+
+        # generating a plot
+        print("Generating a visualization...")
+        if use_free_plot:
+            plots = self.gen_free_plot(tool_result=tool_result, prompt=prompt)
+        else:
+            plots = self.gen_plot_call(
+                tools=plot_tools, tool_result=tool_result, prompt=prompt
+            )
+
+        return {
+            "tool_result": tool_result,
+            "pd_code": result,
+            "dataset": self._data[f"{tool_result['query_id']}_result"],
+            "explanation": explanation,
+            "commentary": commentary,
+            "plots": plots,
         }
