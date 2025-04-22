@@ -4,8 +4,8 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="local_vector_search",
-    version="0.0.0",
+    name="llads",
+    version="0.0.1",
     author="Daniel Hopp",
     author_email="daniel.hopp@un.org",
     description="LLM insights to data.",

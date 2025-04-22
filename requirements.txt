@@ -1,0 +1,6 @@
+langchain==0.1.9
+matplotlib
+openai
+pandas
+pydantic
+requests

@@ -189,36 +189,63 @@ class customLLM(LLM):
         # raw data call
         if not (quiet):
             print("Determining which tools to use...")
-        tool_result = self.gen_tool_call(
-            tools=tools,
-            prompt=prompt,
-        )
+        try:
+            tool_result = self.gen_tool_call(
+                tools=tools,
+                prompt=prompt,
+            )
+        except:
+            print(
+                "An error occurred during the tool determination step. Please try again or reformulate your query."
+            )
 
         # pandas manipulation
         if not (quiet):
             print("Transforming the data...")
-        result = self.gen_pandas_df(tools=tools, tool_result=tool_result, prompt=prompt)
+        try:
+            result = self.gen_pandas_df(
+                tools=tools, tool_result=tool_result, prompt=prompt
+            )
+        except:
+            print(
+                "An error occurred during the data transformation step. Please try again or reformulate your query."
+            )
 
         # explanation of pandas manipulation
         if not (quiet):
             print("Explaining the transformations...")
-        explanation = self.explain_pandas_df(result, prompt=prompt)
+        try:
+            explanation = self.explain_pandas_df(result, prompt=prompt)
+        except:
+            print(
+                "An error occurred during the data explanation step. Please try again or reformulate your query."
+            )
 
         # commentary on the result
         if not (quiet):
             print("Generating commentary...")
-        commentary = self.gen_final_commentary(
-            tool_result, prompt=prompt, validate=validate
-        )
+        try:
+            commentary = self.gen_final_commentary(
+                tool_result, prompt=prompt, validate=validate
+            )
+        except:
+            print(
+                "An error occurred during the commentary step. Please try again or reformulate your query."
+            )
 
         # generating a plot
         if not (quiet):
             print("Generating a visualization...")
-        if use_free_plot:
-            plots = self.gen_free_plot(tool_result=tool_result, prompt=prompt)
-        else:
-            plots = self.gen_plot_call(
-                tools=plot_tools, tool_result=tool_result, prompt=prompt
+        try:
+            if use_free_plot:
+                plots = self.gen_free_plot(tool_result=tool_result, prompt=prompt)
+            else:
+                plots = self.gen_plot_call(
+                    tools=plot_tools, tool_result=tool_result, prompt=prompt
+                )
+        except:
+            print(
+                "An error occurred during the data visualization step. Please try again or reformulate your query."
             )
 
         return {
