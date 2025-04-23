@@ -149,7 +149,7 @@ class customLLM(LLM):
 
         return {
             "visualization_call": plot_result["visualiation_call"],
-            "plots": plot_result["invoked_result"],
+            "invoked_result": plot_result["invoked_result"],
         }
 
     def gen_free_plot(self, tool_result, prompt):
