@@ -66,12 +66,15 @@ class customLLM(LLM):
             raise ValueError("stop kwargs are not permitted.")
         return response.choices[0].message.content
 
-    def gen_tool_call(self, tools, prompt):
+    def gen_tool_call(self, tools, prompt, addt_context=None):
         "determine which tools to call and call them"
-        return gen_tool_call(self, tools, prompt)
+        return gen_tool_call(self, tools, prompt, addt_context)
 
-    def gen_pandas_df(self, tools, tool_result, prompt):
+    def gen_pandas_df(self, tools, tool_result, prompt, addt_context=None):
         "execute pandas manipulations to answer prompt"
+        if addt_context is not None:
+            prompt += addt_context
+
         result = create_final_pandas_instructions(self, tools, tool_result, prompt)
         llm_call = (
             self(result["pd_instructions"]).split("```python")[1].replace("```", "")
@@ -83,8 +86,11 @@ class customLLM(LLM):
             "pd_code": llm_call,
         }
 
-    def explain_pandas_df(self, result, prompt):
+    def explain_pandas_df(self, result, prompt, addt_context=None):
         "explain steps taken for data manipulation"
+
+        if addt_context is not None:
+            prompt += addt_context
 
         instructions = (
             self.system_prompts.loc[
@@ -102,8 +108,14 @@ class customLLM(LLM):
 
         return explanation
 
-    def gen_final_commentary(self, tool_result, prompt, validate=True):
+    def gen_final_commentary(
+        self, tool_result, prompt, validate=True, addt_context=None
+    ):
         "generate the final commentary on the dataset"
+
+        if addt_context is not None:
+            prompt += addt_context
+
         query_id = tool_result["query_id"]
 
         # initial commentary
@@ -142,8 +154,11 @@ class customLLM(LLM):
 
         return commentary
 
-    def gen_plot_call(self, tools, tool_result, prompt):
+    def gen_plot_call(self, tools, tool_result, prompt, addt_context=None):
         "generate a visual aid plot"
+
+        if addt_context is not None:
+            prompt += addt_context
 
         plot_result = gen_plot_call(self, tools, tool_result, prompt)
 
@@ -152,8 +167,11 @@ class customLLM(LLM):
             "invoked_result": plot_result["invoked_result"],
         }
 
-    def gen_free_plot(self, tool_result, prompt):
+    def gen_free_plot(self, tool_result, prompt, addt_context=None):
         "give more freedom to the LLM to produce whatever plot it wants with matplotlib"
+
+        if addt_context is not None:
+            prompt += addt_context
 
         query_id = tool_result["query_id"]
 
@@ -186,6 +204,11 @@ class customLLM(LLM):
         validate=True,
         use_free_plot=False,
         n_retries=5,
+        addt_context_gen_tool_call=None,
+        addt_context_gen_pandas_df=None,
+        addt_context_explain_pandas_df=None,
+        addt_context_gen_final_commentary=None,
+        addt_context_gen_plot_call=None,
         quiet=False,
     ):
         "run the entire pipeline from one function"
@@ -198,6 +221,7 @@ class customLLM(LLM):
                 tool_result = self.gen_tool_call(
                     tools=tools,
                     prompt=prompt,
+                    addt_context=addt_context_gen_tool_call,
                 )
                 attempts = n_retries
             except Exception:
@@ -214,7 +238,10 @@ class customLLM(LLM):
         while attempts < n_retries:
             try:
                 result = self.gen_pandas_df(
-                    tools=tools, tool_result=tool_result, prompt=prompt
+                    tools=tools,
+                    tool_result=tool_result,
+                    prompt=prompt,
+                    addt_context=addt_context_gen_pandas_df,
                 )
                 attempts = n_retries
             except Exception:
@@ -230,7 +257,9 @@ class customLLM(LLM):
         attempts = 0
         while attempts < n_retries:
             try:
-                explanation = self.explain_pandas_df(result, prompt=prompt)
+                explanation = self.explain_pandas_df(
+                    result, prompt=prompt, addt_context=addt_context_explain_pandas_df
+                )
                 attempts = n_retries
             except Exception:
                 attempts += 1
@@ -246,7 +275,10 @@ class customLLM(LLM):
         while attempts < n_retries:
             try:
                 commentary = self.gen_final_commentary(
-                    tool_result, prompt=prompt, validate=validate
+                    tool_result,
+                    prompt=prompt,
+                    validate=validate,
+                    addt_context=addt_context_gen_final_commentary,
                 )
                 attempts = n_retries
             except Exception:
@@ -263,10 +295,17 @@ class customLLM(LLM):
         while attempts < n_retries:
             try:
                 if use_free_plot:
-                    plots = self.gen_free_plot(tool_result=tool_result, prompt=prompt)
+                    plots = self.gen_free_plot(
+                        tool_result=tool_result,
+                        prompt=prompt,
+                        addt_context=addt_context_gen_plot_call,
+                    )
                 else:
                     plots = self.gen_plot_call(
-                        tools=plot_tools, tool_result=tool_result, prompt=prompt
+                        tools=plot_tools,
+                        tool_result=tool_result,
+                        prompt=prompt,
+                        addt_context=addt_context_gen_plot_call,
                     )
                 attempts = n_retries
             except Exception:
@@ -295,6 +334,11 @@ class customLLM(LLM):
         use_free_plot=False,
         prior_query_id=None,
         n_retries=5,
+        addt_context_gen_tool_call=None,
+        addt_context_gen_pandas_df=None,
+        addt_context_explain_pandas_df=None,
+        addt_context_gen_final_commentary=None,
+        addt_context_gen_plot_call=None,
         quiet=False,
     ):
         "same as gen_complete_response, but if given a list of complete responses, generate a followup context-rich prompt given a new prompt first"
@@ -307,6 +351,11 @@ class customLLM(LLM):
                 validate=validate,
                 use_free_plot=use_free_plot,
                 n_retries=n_retries,
+                addt_context_gen_tool_call=addt_context_gen_tool_call,
+                addt_context_gen_pandas_df=addt_context_gen_pandas_df,
+                addt_context_explain_pandas_df=addt_context_explain_pandas_df,
+                addt_context_gen_final_commentary=addt_context_gen_final_commentary,
+                addt_context_gen_plot_call=addt_context_gen_plot_call,
                 quiet=quiet,
             )
         else:
@@ -356,6 +405,11 @@ class customLLM(LLM):
                 validate=validate,
                 use_free_plot=use_free_plot,
                 n_retries=n_retries,
+                addt_context_gen_tool_call=addt_context_gen_tool_call,
+                addt_context_gen_pandas_df=addt_context_gen_pandas_df,
+                addt_context_explain_pandas_df=addt_context_explain_pandas_df,
+                addt_context_gen_final_commentary=addt_context_gen_final_commentary,
+                addt_context_gen_plot_call=addt_context_gen_plot_call,
                 quiet=quiet,
             )
 

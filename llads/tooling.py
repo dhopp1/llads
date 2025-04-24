@@ -11,8 +11,11 @@ today = datetime.date.today()
 date_string = today.strftime("%Y-%m-%d")
 
 
-def gen_tool_call(llm, tools, prompt):
+def gen_tool_call(llm, tools, prompt, addt_context=None):
     "bind tools to a custom LLM"
+
+    if addt_context is not None:
+        prompt += addt_context
 
     def tool_chain(model_output):
         tool_map = {tool.name: tool for tool in tools}

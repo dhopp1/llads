@@ -82,6 +82,14 @@ The `chat()` function will produce a dictionary with the following values:
 - _context\_rich\_prompt_: The prompt passed to the LLM containing the prior context. Empty string if it's the first question in the chat.
 
 ## Explanation of steps/chain
+Note that for each step in the chain, you can provide additional context information specifically for that step by passing a string to any of the following arguments in the `chat()` function:
+
+	- `addt_context_gen_tool_call`
+	- `addt_context_gen_pandas_df`
+	- `addt_context_explain_pandas_df`
+	- `addt_context_gen_final_commentary`
+	- `addt_context_gen_plot_call`
+
 1. The LLM determines which raw data functions it wants to call with which arguments via the  `llm.gen_tool_call()` function, the calls and generates the raw datasets. 
 2. Given the raw data available from the previous step, the `llm.gen_pandas_df()` produces Python code to create a final result dataset.
 3. The LLM explains the data transformation steps via the `llm.explain_pandas_df()` function.
