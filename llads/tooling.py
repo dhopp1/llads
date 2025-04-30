@@ -158,14 +158,14 @@ def gen_plot_call(llm, tools, tool_result, prompt):
         os.remove(f'{tool_result["query_id"]}_result.csv')
 
         output = {
-            "visualiation_call": tool_call,
+            "visualization_call": tool_call,
             "invoked_result": invoked_results,
             "n_tokens_input": n_tokens_input,
             "n_tokens_output": n_tokens_output,
         }
     except:
         output = {
-            "visualiation_call": "error",
+            "visualization_call": "error",
             "invoked_result": ["error"],
             "n_tokens_input": 0,
             "n_tokens_output": 0,
