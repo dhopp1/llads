@@ -173,7 +173,7 @@ def gen_plot_call(llm, tools, tool_result, prompt):
 
     end_time = time.time()
 
-    output["second_taken"] = end_time - start_time
+    output["seconds_taken"] = end_time - start_time
 
     return output
 
