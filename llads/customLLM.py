@@ -342,7 +342,7 @@ class customLLM(LLM):
                 prompt=prompt,
                 addt_context=addt_context_gen_pandas_df,
             )
-            if result["pd_instructions"] != "error":
+            if result["pd_code"] != "error":
                 attempts = n_retries
             else:
                 attempts += 1
