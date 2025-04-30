@@ -70,15 +70,33 @@ The `chat()` function will produce a dictionary with the following values:
 	- _query\_id_: The unique ID number of this query
 	- _tool\_call_: The name and arguments of the tools the LLM called
 	- _invoked\_result_: The actual DataFrame resulting from the tool calls
+	- _n\_tokens\_input_: The number of tokens consumed by the LLM for input in this step
+	- _n\_tokens\_output_: The number of tokens consumed by the LLM for output in this step
+	- _seconds\_taken_: How many seconds this step took to run
 - _pd\_code_: A dictionary with the following information:
 	- _data\_desc_: A text description of the data made available to the LLM via the tool call
 	- _pd\_code_: The Python code the LLM executed to edit the raw data available to it
+	- _n\_tokens\_input_: The number of tokens consumed by the LLM for input in this step
+	- _n\_tokens\_output_: The number of tokens consumed by the LLM for output in this step
+	- _seconds\_taken_: How many seconds this step took to run
 - _dataset_: The actual DataFrame that is the result of the `pd_code` call
-- _explanation_: The LLM's explanation of the data manipulation process undergone to answer the user's question
-- _commentary_: The LLM's commentary on the final dataset answering the user's question
+- _explanation_: A dictionary with the following information:
+	- _explanation_: The LLM's explanation of the data manipulation process undergone to answer the user's question 
+	- _n\_tokens\_input_: The number of tokens consumed by the LLM for input in this step
+	- _n\_tokens\_output_: The number of tokens consumed by the LLM for output in this step
+	- _seconds\_taken_: How many seconds this step took to run
+- _commentary_: A dictionary with the following information:
+	- _commentary_: The LLM's commentary on the final dataset answering the user's question
+	- _n\_tokens\_input_: The number of tokens consumed by the LLM for input in this step
+	- _n\_tokens\_output_: The number of tokens consumed by the LLM for output in this step
+	- _seconds\_taken_: How many seconds this step took to run
+
 - _plots_: A dictionary with the following values:
 	- _visualization\_call_: A list of either the matplotlib code written or the plotting function call run to create the visualization to answer the user's question
 	- _invoked\_result_: A list of the actual plot figures produced to answer the user's question
+	- _n\_tokens\_input_: The number of tokens consumed by the LLM for input in this step
+	- _n\_tokens\_output_: The number of tokens consumed by the LLM for output in this step
+	- _seconds\_taken_: How many seconds this step took to run
 - _context\_rich\_prompt_: The prompt passed to the LLM containing the prior context. Empty string if it's the first question in the chat.
 
 ## Explanation of steps/chain

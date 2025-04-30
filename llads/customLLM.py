@@ -1,13 +1,19 @@
 import datetime
 import pandas as pd
 from pydantic import Field, PrivateAttr
+import time
 from typing import Any, List, Optional
 
 from langchain.callbacks.manager import CallbackManagerForLLMRun
 from langchain.llms.base import LLM
 from openai import OpenAI
 
-from llads.tooling import create_final_pandas_instructions, gen_plot_call, gen_tool_call
+from llads.tooling import (
+    count_tokens,
+    create_final_pandas_instructions,
+    gen_plot_call,
+    gen_tool_call,
+)
 
 
 today = datetime.date.today()
@@ -72,12 +78,20 @@ class customLLM(LLM):
 
     def gen_pandas_df(self, tools, tool_result, prompt, addt_context=None):
         "execute pandas manipulations to answer prompt"
+        start_time = time.time()
+
         if addt_context is not None:
             prompt += addt_context
 
         try:
             result = create_final_pandas_instructions(self, tools, tool_result, prompt)
+
+            n_tokens_input = count_tokens(result["pd_instructions"])
+
             llm_call = self(result["pd_instructions"])
+
+            n_tokens_output = count_tokens(llm_call)
+
             try:
                 llm_call = llm_call.split("```python")[1].replace("```", "")
             except:
@@ -88,14 +102,25 @@ class customLLM(LLM):
             output = {
                 "data_desc": result["data_desc"],
                 "pd_code": llm_call,
+                "n_tokens_input": n_tokens_input,
+                "n_tokens_output": n_tokens_output,
             }
         except:
-            output = {"data_desc": "error", "pd_code": "error"}
+            output = {
+                "data_desc": "error",
+                "pd_code": "error",
+                "n_tokens_input": 0,
+                "n_tokens_output": 0,
+            }
+
+        end_time = time.time()
+        output["seconds_taken"] = end_time - start_time
 
         return output
 
     def explain_pandas_df(self, result, prompt, addt_context=None):
         "explain steps taken for data manipulation"
+        start_time = time.time()
 
         if addt_context is not None:
             prompt += addt_context
@@ -112,17 +137,30 @@ class customLLM(LLM):
             )
         )
 
+        n_tokens_input = count_tokens(instructions)
+
         try:
             explanation = self(instructions)
+            n_tokens_output = count_tokens(explanation)
         except:
             explanation = "error"
+            n_tokens_input = 0
+            n_tokens_output = 0
 
-        return explanation
+        end_time = time.time()
+
+        return {
+            "explanation": explanation,
+            "n_tokens_input": n_tokens_input,
+            "n_tokens_output": n_tokens_output,
+            "seconds_taken": end_time - start_time,
+        }
 
     def gen_final_commentary(
         self, tool_result, prompt, validate=True, addt_context=None
     ):
         "generate the final commentary on the dataset"
+        start_time = time.time()
 
         if addt_context is not None:
             prompt += addt_context
@@ -144,7 +182,12 @@ class customLLM(LLM):
                     ),
                 )
             )
+
+            n_tokens_input = count_tokens(commentary_instructions)
+
             commentary = self(commentary_instructions)
+
+            n_tokens_output = count_tokens(commentary)
 
             # validation commentary
             if validate:
@@ -162,11 +205,25 @@ class customLLM(LLM):
                         commentary=commentary,
                     )
                 )
+
+                n_tokens_input += count_tokens(validation_instructions)
+
                 commentary = self(validation_instructions)
+
+                n_tokens_output += count_tokens(commentary)
         except:
             commentary = "error"
+            n_tokens_input = 0
+            n_tokens_output = 0
 
-        return commentary
+        end_time = time.time()
+
+        return {
+            "commentary": commentary,
+            "n_tokens_input": n_tokens_input,
+            "n_tokens_output": n_tokens_output,
+            "seconds_taken": end_time - start_time,
+        }
 
     def gen_plot_call(self, tools, tool_result, prompt, addt_context=None):
         "generate a visual aid plot"
@@ -183,6 +240,7 @@ class customLLM(LLM):
 
     def gen_free_plot(self, tool_result, prompt, addt_context=None):
         "give more freedom to the LLM to produce whatever plot it wants with matplotlib"
+        start_time = time.time()
 
         if addt_context is not None:
             prompt += addt_context
@@ -203,7 +261,11 @@ class customLLM(LLM):
                 )
             )
 
+            n_tokens_input = count_tokens(instructions)
+
             plot_call = self(instructions)
+
+            n_tokens_output = count_tokens(plot_call)
 
             try:
                 plot_call = plot_call.split("```python")[1].replace("```", "")
@@ -215,12 +277,19 @@ class customLLM(LLM):
             output = {
                 "visualization_call": [plot_call],
                 "invoked_result": [eval(f"_{query_id.replace('-', '_')}_plot")],
+                "n_tokens_input": n_tokens_input,
+                "n_tokens_output": n_tokens_output,
             }
         except:
             output = {
                 "visualization_call": ["error"],
                 "invoked_result": ["error"],
+                "n_tokens_input": 0,
+                "n_tokens_output": 0,
             }
+
+        end_time = time.time()
+        output["seconds_taken"] = end_time - start_time
 
         return output
 

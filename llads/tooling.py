@@ -5,66 +5,101 @@ from langchain.tools.render import render_text_description
 from langchain_core.output_parsers import JsonOutputParser
 from operator import itemgetter
 import os
+import re
+import time
 import uuid
 
 today = datetime.date.today()
 date_string = today.strftime("%Y-%m-%d")
 
 
+def count_tokens(text):
+    tokens_whitespace = text.split()
+    tokens_punctuation = re.findall(r"\b\w+\b|[^\w\s]", text)
+
+    return len(tokens_whitespace) + len(tokens_punctuation)
+
+
 def gen_tool_call(llm, tools, prompt, addt_context=None):
     "bind tools to a custom LLM"
+    start_time = time.time()
 
     if addt_context is not None:
         prompt += addt_context
 
-    def tool_chain(model_output):
-        tool_map = {tool.name: tool for tool in tools}
-        chosen_tool = tool_map[model_output["name"]]
-        return itemgetter("arguments") | chosen_tool
-
-    # render tools as a string
-    rendered_tools = render_text_description(tools)
-
-    system_prompt = (
-        llm.system_prompts.loc[lambda x: x["step"] == "raw data tool call", "prompt"]
-        .values[0]
-        .format(date_string=date_string, rendered_tools=rendered_tools)
-    )
-
-    # choosing tool call
-    combined_prompt = ChatPromptTemplate.from_messages(
-        [("system", system_prompt), ("user", "{input}")]
-    )
-
-    select_tool_chain = combined_prompt | llm | JsonOutputParser()
-
     try:
-        tool_call = select_tool_chain.invoke({"input": prompt})
-    except:
-        tool_call = "error"
 
-    # actual running of tool
-    if type(tool_call) != list:
-        tool_call = [tool_call]
+        def tool_chain(model_output):
+            tool_map = {tool.name: tool for tool in tools}
+            chosen_tool = tool_map[model_output["name"]]
+            return itemgetter("arguments") | chosen_tool
 
-    invoked_results = []
-    for i in range(len(tool_call)):
-        tool_i = RunnableLambda(lambda args: tool_call[i]) | tool_chain
+        # render tools as a string
+        rendered_tools = render_text_description(tools)
+
+        system_prompt = (
+            llm.system_prompts.loc[
+                lambda x: x["step"] == "raw data tool call", "prompt"
+            ]
+            .values[0]
+            .format(date_string=date_string, rendered_tools=rendered_tools)
+        )
+
+        # choosing tool call
+        combined_prompt = ChatPromptTemplate.from_messages(
+            [("system", system_prompt), ("user", "{input}")]
+        )
+
+        n_tokens_input = count_tokens(system_prompt + prompt)
+
+        select_tool_chain = combined_prompt | llm | JsonOutputParser()
 
         try:
-            invoked_results.append(tool_i.invoke(""))
+            tool_call = select_tool_chain.invoke({"input": prompt})
         except:
-            invoked_results = ["error"]
+            tool_call = "error"
 
-    return {
-        "query_id": str(uuid.uuid4()),
-        "tool_call": tool_call,
-        "invoked_result": invoked_results,
-    }
+        n_tokens_output = count_tokens(str(tool_call))
+
+        # actual running of tool
+        if type(tool_call) != list:
+            tool_call = [tool_call]
+
+        invoked_results = []
+        for i in range(len(tool_call)):
+            tool_i = RunnableLambda(lambda args: tool_call[i]) | tool_chain
+
+            try:
+                invoked_results.append(tool_i.invoke(""))
+            except:
+                invoked_results = ["error"]
+
+        output = {
+            "query_id": str(uuid.uuid4()),
+            "tool_call": tool_call,
+            "invoked_result": invoked_results,
+            "n_tokens_input": n_tokens_input,
+            "n_tokens_output": n_tokens_output,
+        }
+    except:
+        output = {
+            "query_id": str(uuid.uuid4()),
+            "tool_call": "error",
+            "invoked_result": ["error"],
+            "n_tokens_input": 0,
+            "n_tokens_output": 0,
+        }
+
+    end_time = time.time()
+    output["seconds_taken"] = end_time - start_time
+
+    return output
 
 
 def gen_plot_call(llm, tools, tool_result, prompt):
     "generate a plot call"
+    start_time = time.time()
+
     try:
         llm._data[f'{tool_result["query_id"]}_result'].to_csv(
             f'{tool_result["query_id"]}_result.csv', index=False
@@ -90,6 +125,8 @@ def gen_plot_call(llm, tools, tool_result, prompt):
             )
         )
 
+        n_tokens_input = count_tokens(system_prompt + prompt)
+
         # choosing tool call
         combined_prompt = ChatPromptTemplate.from_messages(
             [("system", system_prompt), ("user", "{input}")]
@@ -101,6 +138,8 @@ def gen_plot_call(llm, tools, tool_result, prompt):
             tool_call = select_tool_chain.invoke({"input": prompt})
         except:
             tool_call = "error"
+
+        n_tokens_output = count_tokens(str(tool_call))
 
         # actual running of tool
         if type(tool_call) != list:
@@ -121,12 +160,20 @@ def gen_plot_call(llm, tools, tool_result, prompt):
         output = {
             "visualiation_call": tool_call,
             "invoked_result": invoked_results,
+            "n_tokens_input": n_tokens_input,
+            "n_tokens_output": n_tokens_output,
         }
     except:
         output = {
             "visualiation_call": "error",
             "invoked_result": ["error"],
+            "n_tokens_input": 0,
+            "n_tokens_output": 0,
         }
+
+    end_time = time.time()
+
+    output["second_taken"] = end_time - start_time
 
     return output
 
