@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="llads",
-    version="0.0.7",
+    version="0.0.8",
     author="Daniel Hopp",
     author_email="daniel.hopp@un.org",
     description="LLM insights to data.",

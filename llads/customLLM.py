@@ -320,10 +320,13 @@ class customLLM(LLM):
                 addt_context=addt_context_gen_tool_call,
             )
             if isinstance(tool_result["invoked_result"], list):
-                if tool_result["invoked_result"][0] != "error":
-                    condition = True
+                if isinstance(tool_result["invoked_result"][0], str):
+                    if tool_result["invoked_result"][0] != "error":
+                        condition = True
+                    else:
+                        condition = False
                 else:
-                    condition = False
+                    condition = True
             else:
                 condition = True
             if condition:
@@ -395,10 +398,13 @@ class customLLM(LLM):
                     addt_context=addt_context_gen_plot_call,
                 )
             if isinstance(plots["invoked_result"], list):
-                if plots["invoked_result"][0] != "error":
-                    condition = True
+                if isinstance(plots["invoked_result"][0], str):
+                    if plots["invoked_result"][0] != "error":
+                        condition = True
+                    else:
+                        condition = False
                 else:
-                    condition = False
+                    condition = True
             else:
                 condition = True
             if condition:
