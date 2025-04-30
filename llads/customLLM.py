@@ -75,16 +75,24 @@ class customLLM(LLM):
         if addt_context is not None:
             prompt += addt_context
 
-        result = create_final_pandas_instructions(self, tools, tool_result, prompt)
-        llm_call = (
-            self(result["pd_instructions"]).split("```python")[1].replace("```", "")
-        )
-        exec(llm_call)
+        try:
+            result = create_final_pandas_instructions(self, tools, tool_result, prompt)
+            llm_call = self(result["pd_instructions"])
+            try:
+                llm_call = llm_call.split("```python")[1].replace("```", "")
+            except:
+                pass
 
-        return {
-            "data_desc": result["data_desc"],
-            "pd_code": llm_call,
-        }
+            exec(llm_call)
+
+            output = {
+                "data_desc": result["data_desc"],
+                "pd_code": llm_call,
+            }
+        except:
+            output = {"data_desc": "error", "pd_code": "error"}
+
+        return output
 
     def explain_pandas_df(self, result, prompt, addt_context=None):
         "explain steps taken for data manipulation"
@@ -104,7 +112,10 @@ class customLLM(LLM):
             )
         )
 
-        explanation = self(instructions)
+        try:
+            explanation = self(instructions)
+        except:
+            explanation = "error"
 
         return explanation
 
@@ -118,25 +129,9 @@ class customLLM(LLM):
 
         query_id = tool_result["query_id"]
 
-        # initial commentary
-        commentary_instructions = (
-            self.system_prompts.loc[
-                lambda x: x["step"] == "initial commentary call", "prompt"
-            ]
-            .values[0]
-            .format(
-                date_string=date_string,
-                prompt=prompt,
-                result_df_markdown=self._data[f"{query_id}_result"].to_markdown(
-                    index=False
-                ),
-            )
-        )
-        commentary = self(commentary_instructions)
-
-        # validation commentary
-        if validate:
-            validation_instructions = (
+        try:
+            # initial commentary
+            commentary_instructions = (
                 self.system_prompts.loc[
                     lambda x: x["step"] == "initial commentary call", "prompt"
                 ]
@@ -147,10 +142,29 @@ class customLLM(LLM):
                     result_df_markdown=self._data[f"{query_id}_result"].to_markdown(
                         index=False
                     ),
-                    commentary=commentary,
                 )
             )
-            commentary = self(validation_instructions)
+            commentary = self(commentary_instructions)
+
+            # validation commentary
+            if validate:
+                validation_instructions = (
+                    self.system_prompts.loc[
+                        lambda x: x["step"] == "initial commentary call", "prompt"
+                    ]
+                    .values[0]
+                    .format(
+                        date_string=date_string,
+                        prompt=prompt,
+                        result_df_markdown=self._data[f"{query_id}_result"].to_markdown(
+                            index=False
+                        ),
+                        commentary=commentary,
+                    )
+                )
+                commentary = self(validation_instructions)
+        except:
+            commentary = "error"
 
         return commentary
 
@@ -175,26 +189,40 @@ class customLLM(LLM):
 
         query_id = tool_result["query_id"]
 
-        instructions = (
-            self.system_prompts.loc[
-                lambda x: x["step"] == "free plot tool call", "prompt"
-            ]
-            .values[0]
-            .format(
-                prompt=prompt,
-                result_df_name=f"self._data[{query_id}_result]",
-                markdown_result_df=self._data[f"{query_id}_result"],
-                plot_name=f"_{query_id.replace('-', '_')}_plot",
+        try:
+            instructions = (
+                self.system_prompts.loc[
+                    lambda x: x["step"] == "free plot tool call", "prompt"
+                ]
+                .values[0]
+                .format(
+                    prompt=prompt,
+                    result_df_name=f"self._data[{query_id}_result]",
+                    markdown_result_df=self._data[f"{query_id}_result"],
+                    plot_name=f"_{query_id.replace('-', '_')}_plot",
+                )
             )
-        )
 
-        plot_call = self(instructions).split("```python")[1].replace("```", "")
-        exec(plot_call)
+            plot_call = self(instructions)
 
-        return {
-            "visualization_call": [plot_call],
-            "invoked_result": [eval(f"_{query_id.replace('-', '_')}_plot")],
-        }
+            try:
+                plot_call = plot_call.split("```python")[1].replace("```", "")
+            except:
+                pass
+
+            exec(plot_call)
+
+            output = {
+                "visualization_call": [plot_call],
+                "invoked_result": [eval(f"_{query_id.replace('-', '_')}_plot")],
+            }
+        except:
+            output = {
+                "visualization_call": ["error"],
+                "invoked_result": ["error"],
+            }
+
+        return output
 
     def gen_complete_response(
         self,
@@ -203,12 +231,12 @@ class customLLM(LLM):
         plot_tools=None,
         validate=True,
         use_free_plot=False,
-        n_retries=5,
         addt_context_gen_tool_call=None,
         addt_context_gen_pandas_df=None,
         addt_context_explain_pandas_df=None,
         addt_context_gen_final_commentary=None,
         addt_context_gen_plot_call=None,
+        n_retries=3,
         quiet=False,
     ):
         "run the entire pipeline from one function"
@@ -217,109 +245,95 @@ class customLLM(LLM):
             print("Determining which tools to use...")
         attempts = 0
         while attempts < n_retries:
-            try:
-                tool_result = self.gen_tool_call(
-                    tools=tools,
-                    prompt=prompt,
-                    addt_context=addt_context_gen_tool_call,
-                )
+            tool_result = self.gen_tool_call(
+                tools=tools,
+                prompt=prompt,
+                addt_context=addt_context_gen_tool_call,
+            )
+            if tool_result["invoked_result"] != ["error"]:
                 attempts = n_retries
-            except Exception:
+            else:
                 attempts += 1
-                if attempts == n_retries:
-                    print(
-                        "An error occurred during the tool determination step. Please try again or reformulate your query."
-                    )
 
         # pandas manipulation
         if not (quiet):
             print("Transforming the data...")
         attempts = 0
         while attempts < n_retries:
-            try:
-                result = self.gen_pandas_df(
-                    tools=tools,
-                    tool_result=tool_result,
-                    prompt=prompt,
-                    addt_context=addt_context_gen_pandas_df,
-                )
+            result = self.gen_pandas_df(
+                tools=tools,
+                tool_result=tool_result,
+                prompt=prompt,
+                addt_context=addt_context_gen_pandas_df,
+            )
+            if result["pd_instructions"] != "error":
                 attempts = n_retries
-            except Exception:
+            else:
                 attempts += 1
-                if attempts == n_retries:
-                    print(
-                        "An error occurred during the data transformation step. Please try again or reformulate your query."
-                    )
 
         # explanation of pandas manipulation
         if not (quiet):
             print("Explaining the transformations...")
         attempts = 0
         while attempts < n_retries:
-            try:
-                explanation = self.explain_pandas_df(
-                    result, prompt=prompt, addt_context=addt_context_explain_pandas_df
-                )
+            explanation = self.explain_pandas_df(
+                result, prompt=prompt, addt_context=addt_context_explain_pandas_df
+            )
+            if explanation != "error":
                 attempts = n_retries
-            except Exception:
+            else:
                 attempts += 1
-                if attempts == n_retries:
-                    print(
-                        "An error occurred during the data explanation step. Please try again or reformulate your query."
-                    )
 
         # commentary on the result
         if not (quiet):
             print("Generating commentary...")
         attempts = 0
         while attempts < n_retries:
-            try:
-                commentary = self.gen_final_commentary(
-                    tool_result,
-                    prompt=prompt,
-                    validate=validate,
-                    addt_context=addt_context_gen_final_commentary,
-                )
+            commentary = self.gen_final_commentary(
+                tool_result,
+                prompt=prompt,
+                validate=validate,
+                addt_context=addt_context_gen_final_commentary,
+            )
+            if commentary != "error":
                 attempts = n_retries
-            except Exception:
+            else:
                 attempts += 1
-                if attempts == n_retries:
-                    print(
-                        "An error occurred during the commentary step. Please try again or reformulate your query."
-                    )
 
         # generating a plot
         if not (quiet):
             print("Generating a visualization...")
         attempts = 0
         while attempts < n_retries:
-            try:
-                if use_free_plot:
-                    plots = self.gen_free_plot(
-                        tool_result=tool_result,
-                        prompt=prompt,
-                        addt_context=addt_context_gen_plot_call,
-                    )
-                else:
-                    plots = self.gen_plot_call(
-                        tools=plot_tools,
-                        tool_result=tool_result,
-                        prompt=prompt,
-                        addt_context=addt_context_gen_plot_call,
-                    )
+            if use_free_plot:
+                plots = self.gen_free_plot(
+                    tool_result=tool_result,
+                    prompt=prompt,
+                    addt_context=addt_context_gen_plot_call,
+                )
+            else:
+                plots = self.gen_plot_call(
+                    tools=plot_tools,
+                    tool_result=tool_result,
+                    prompt=prompt,
+                    addt_context=addt_context_gen_plot_call,
+                )
+            if plots["invoked_result"] != ["error"]:
                 attempts = n_retries
-            except Exception:
+            else:
                 attempts += 1
-                if attempts == n_retries:
-                    print(
-                        "An error occurred during the data visualization step. Please try again or reformulate your query."
-                    )
+
+        # final dataframe:
+        try:
+            dataframe = self._data[f"{tool_result['query_id']}_result"]
+        except:
+            dataframe = pd.DataFrame()
 
         return {
             "initial_prompt": prompt,
             "tool_result": tool_result,
             "pd_code": result,
-            "dataset": self._data[f"{tool_result['query_id']}_result"],
+            "dataset": dataframe,
             "explanation": explanation,
             "commentary": commentary,
             "plots": plots,

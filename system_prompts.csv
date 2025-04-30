@@ -39,7 +39,9 @@ The contents of the first couple rows of the dataset:
 arguments: the arguments of the function called
 tool_desc: the docstring of the function called
 actual_data: the actual .head() of the resultant dataset",intermediate step which produces a description of a called function call and result
-data dictionary intro,You have the following data available to you:\n\n,,introduction for the step where it is described to the LLM what information it has available to it as a result of the tool calls
+data dictionary intro,"You have the following data available to you:
+
+",,introduction for the step where it is described to the LLM what information it has available to it as a result of the tool calls
 data dictionary body,"Information on the variable named '{intermediate_dataset_name}':
     
 {tool_descriptions}
@@ -49,7 +51,9 @@ data dictionary body,"Information on the variable named '{intermediate_dataset_n
 tool_descriptions: list comprehension of the call descriptions",looped body for the step where it is described to the LLM what information it has available to it as a result of the tool calls
 pandas manipulation call,"You are given this initial prompt (the current date is {date_string}): {prompt}
     
-You have the following datasets available to you: {data_dict_desc}
+{data_dict_desc}. 
+
+The functions have already been called, there is no need to call them again, just use the data alrady stored in the variables described.
 
 Using Pandas, manipulate the dataset so that you can best answer the initial prompt. Create the output dataset in long format. Save the output in a variable called '{result_dataset_name}'. Output only Python code.","date_string: today's date in YYYY-MM-DD format
 prompt: the user's initial prompt
@@ -87,7 +91,9 @@ Check that output for factual inaccuracies given the dataset and correct any. If
 prompt: the user's initial prompt
 result_df_markdown: the final results dataframe in markdown
 commentary: the initial commentary from the first LLM call",instructions to check the initial commentary for mistakes and fix them
-context rich prompt start,This is the user's follow-up question: '{prompt}'. Below is the context around the question.\n\n,prompt: the user's initial prompt,"for chat, the intro to the contextual information given"
+context rich prompt start,"This is the user's follow-up question: '{prompt}'. Below is the context around the question.
+
+",prompt: the user's initial prompt,"for chat, the intro to the contextual information given"
 context rich prompt body,"Exchange {ex_num}:
 
 Initial user question: {initial_prompt}
