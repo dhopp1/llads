@@ -233,10 +233,7 @@ class customLLM(LLM):
 
         plot_result = gen_plot_call(self, tools, tool_result, prompt)
 
-        return {
-            "visualization_call": plot_result["visualiation_call"],
-            "invoked_result": plot_result["invoked_result"],
-        }
+        return plot_result
 
     def gen_free_plot(self, tool_result, prompt, addt_context=None):
         "give more freedom to the LLM to produce whatever plot it wants with matplotlib"
