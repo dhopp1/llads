@@ -319,7 +319,14 @@ class customLLM(LLM):
                 prompt=prompt,
                 addt_context=addt_context_gen_tool_call,
             )
-            if tool_result["invoked_result"] != ["error"]:
+            if isinstance(tool_result["invoked_result"], list):
+                if tool_result["invoked_result"][0] != "error":
+                    condition = True
+                else:
+                    condition = False
+            else:
+                condition = True
+            if condition:
                 attempts = n_retries
             else:
                 attempts += 1
@@ -387,7 +394,14 @@ class customLLM(LLM):
                     prompt=prompt,
                     addt_context=addt_context_gen_plot_call,
                 )
-            if plots["invoked_result"] != ["error"]:
+            if isinstance(plots["invoked_result"], list):
+                if plots["invoked_result"][0] != "error":
+                    condition = True
+                else:
+                    condition = False
+            else:
+                condition = True
+            if condition:
                 attempts = n_retries
             else:
                 attempts += 1
