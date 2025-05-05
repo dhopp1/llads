@@ -2,7 +2,7 @@ import datetime
 import pandas as pd
 from pydantic import Field, PrivateAttr
 import time
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 from langchain.callbacks.manager import CallbackManagerForLLMRun
 from langchain.llms.base import LLM
@@ -28,6 +28,9 @@ class customLLM(LLM):
     system_prompt: str = ""  # for every call
     temperature: float = 0.0
     max_tokens: int = 2048
+    reasoning_effort: Optional[Union[str, None]] = Field(
+        default=None
+    )  # "low", "medium", or "high" for Gemini 2.5 Flash. Otherwise None.
 
     _client: OpenAI = PrivateAttr()
     _data: dict = PrivateAttr()
@@ -65,6 +68,7 @@ class customLLM(LLM):
             model=self.model_name,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
+            reasoning_effort=self.reasoning_effort,
             messages=messages,
         )
 
