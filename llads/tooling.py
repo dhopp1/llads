@@ -366,7 +366,7 @@ def gen_description(llm, tool, tool_call, invoked_result):
     # metadata
     name = "`" + tool_call["name"] + "`"
     arguments = "`" + str(tool_call["arguments"]) + "`"
-    tool_desc = "```\n" + render_text_description(tool) + "\n```"
+    tool_desc = "\n\n```\n\n" + render_text_description(tool) + "\n\n```\n\n"
 
     # actual data
     actual_data = df_description(invoked_result, unique_threshold=25, top_n_values=5)
