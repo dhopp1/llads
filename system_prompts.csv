@@ -33,7 +33,7 @@ With function arguments: {arguments}
 
 The function's docstring: {tool_desc}
 
-The contents of the first couple rows of the dataset: 
+Information on the contents of the dataset: 
     
 {actual_data}","name: the name of the function called
 arguments: the arguments of the function called

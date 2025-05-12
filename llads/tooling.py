@@ -1,16 +1,199 @@
 import datetime
+import io
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda
 from langchain.tools.render import render_text_description
 from langchain_core.output_parsers import JsonOutputParser
 from operator import itemgetter
 import os
+import pandas as pd
 import re
 import time
 import uuid
 
 today = datetime.date.today()
 date_string = today.strftime("%Y-%m-%d")
+
+
+def df_description(
+    df,
+    unique_threshold=25,
+    top_n_values=5,  # Number of top values to show for high cardinality
+):
+    """
+    Generates a markdown table describing a Pandas DataFrame
+
+    Includes column names, data types, numeric ranges.
+    For string/object columns:
+    - Lists unique values if count <= unique_threshold.
+    - Shows unique count and top_n most frequent values (with counts)
+      if count > unique_threshold (Approach 4).
+
+    Args:
+        df (pd.DataFrame): The DataFrame to describe.
+        unique_threshold (int): Maximum number of unique values to list for
+                                string/object columns before switching to
+                                showing value counts.
+        top_n_values (int): The number of most frequent values to display
+                            for high-cardinality string/object columns.
+
+    Returns:
+        str: A markdown formatted string describing the DataFrame.
+    """
+    if not isinstance(df, pd.DataFrame):
+        return "Error: Input is not a Pandas DataFrame."
+
+    buffer = io.StringIO()  # Use StringIO to build the string efficiently
+
+    # Write Markdown table header
+    buffer.write("| Column Name | Data Type | Details |\n")
+    buffer.write("|---|---|---|\n")
+
+    for col_name in df.columns:
+        col_data = df[col_name]
+        dtype = col_data.dtype
+        has_missing = col_data.isnull().any()  # Check for missing values once
+
+        details = ""
+
+        # Check for predominantly missing columns
+        if col_data.isnull().all():
+            details = "All missing values"
+            has_missing = False  # Already captured by the main detail
+
+        # Numeric types (integer or float)
+        elif pd.api.types.is_numeric_dtype(dtype):
+            min_val = col_data.min(skipna=True)
+            max_val = col_data.max(skipna=True)
+
+            # Check if min/max calculation resulted in NaN (can happen if all are NaN)
+            if pd.isna(min_val) and pd.isna(max_val):
+                details = "Numeric (contains only missing values)"
+                has_missing = False  # Covered by detail message
+            else:
+                # Format based on dtype to avoid unnecessary decimals for ints
+                if pd.api.types.is_integer_dtype(dtype):
+                    # Use try-except for potential large numbers that can't be int
+                    try:
+                        details = (
+                            f"Numeric (Range: ${int(min_val):,}$ - ${int(max_val):,}$)"
+                        )
+                    except (ValueError, TypeError):
+                        details = f"Numeric (Range: ${min_val:,}$ - ${max_val:,}$)"  # Fallback for large ints
+                else:
+                    # Simple formatting, adjust precision as needed
+                    details = f"Numeric (Range: ${min_val:,.2f}$ - ${max_val:,.2f}$)"
+
+        # String / Object types
+        elif pd.api.types.is_object_dtype(dtype) or pd.api.types.is_string_dtype(dtype):
+            try:  # Use try-except for mixed types that might fail nunique/unique
+                # Drop NA for counting unique values accurately for the threshold check
+                col_data_non_null = col_data.dropna()
+                num_unique = col_data_non_null.nunique()
+
+                if num_unique == 0 and not has_missing:  # Only non-nulls were checked
+                    details = (
+                        "String/Object (No unique values found besides potential NaNs)"
+                    )
+                elif num_unique <= unique_threshold:
+                    unique_values = col_data_non_null.unique()
+                    # Format unique values, escaping backticks and handling potential non-string types
+                    formatted_uniques = [
+                        str(v).replace("`", "\\`") for v in unique_values
+                    ]
+                    details = f"String/Object ({num_unique} unique): `{', '.join(formatted_uniques)}`"
+                else:
+                    # High cardinality: show count and top N value counts (Approach 4)
+                    top_counts = col_data.value_counts().head(
+                        top_n_values
+                    )  # value_counts handles NaNs by default
+                    # Format top counts, escaping backticks in keys (values)
+                    formatted_counts = [
+                        f"`{str(k).replace('`', '\\`')}` ({v})"
+                        for k, v in top_counts.items()
+                    ]
+                    details = (
+                        f"String/Object ({num_unique} unique values. "
+                        f"Top {len(formatted_counts)} counts: {', '.join(formatted_counts)})"
+                    )
+
+            except Exception as e:
+                details = f"Object (Could not analyze uniques/counts: {e})"
+
+        # Datetime types
+        elif pd.api.types.is_datetime64_any_dtype(dtype):
+            try:
+                min_date_obj = col_data.min(skipna=True)
+                max_date_obj = col_data.max(skipna=True)
+                min_date = (
+                    min_date_obj.strftime("%Y-%m-%d")
+                    if pd.notna(min_date_obj)
+                    else "N/A"
+                )
+                max_date = (
+                    max_date_obj.strftime("%Y-%m-%d")
+                    if pd.notna(max_date_obj)
+                    else "N/A"
+                )
+
+                if min_date == "N/A" and max_date == "N/A":
+                    details = "Datetime (contains only missing values)"
+                    has_missing = False
+                else:
+                    details = f"Datetime (Range: {min_date} - {max_date})"
+
+            except Exception as e:
+                details = f"Datetime (Error analyzing range: {e})"
+
+        # Boolean types
+        elif pd.api.types.is_bool_dtype(dtype):
+            counts = (
+                col_data.value_counts()
+            )  # Includes NaN counts if specified, default excludes
+            true_count = counts.get(True, 0)
+            false_count = counts.get(False, 0)
+            details = f"Boolean (True: {true_count:,}, False: {false_count:,})"
+
+        # Categorical types
+        elif pd.api.types.is_categorical_dtype(dtype):
+            num_categories = len(col_data.cat.categories)
+            if num_categories <= unique_threshold:
+                # Format categories, escaping backticks
+                formatted_cats = [
+                    str(c).replace("`", "\\`") for c in col_data.cat.categories
+                ]
+                details = f"Categorical ({num_categories} categories): `{', '.join(formatted_cats)}`"
+            else:
+                # High cardinality categoricals: Show count and top N value counts
+                top_counts = col_data.value_counts().head(top_n_values)
+                # Format top counts, escaping backticks in keys (categories)
+                formatted_counts = [
+                    f"`{str(k).replace('`', '\\`')}` ({v})"
+                    for k, v in top_counts.items()
+                ]
+                details = (
+                    f"Categorical ({num_categories} categories. "
+                    f"Top {len(formatted_counts)} counts: {', '.join(formatted_counts)})"
+                )
+
+        # Other types
+        else:
+            details = f"Type: {dtype} (Specific details not generated)"
+
+        # Append missing value info if relevant and not already covered
+        if has_missing:
+            missing_count = col_data.isnull().sum()
+            # Add count only if > 0, otherwise has_missing might be True from bool None
+            if missing_count > 0:
+                details += f" ({missing_count:,} missing values)"
+
+        # Escape pipe characters in column name and details for markdown
+        safe_col_name = str(col_name).replace("|", "\\|")
+        safe_details = details.replace("|", "\\|")
+
+        buffer.write(f"| {safe_col_name} | {dtype} | {safe_details} |\n")
+
+    return buffer.getvalue()
 
 
 def count_tokens(text):
@@ -186,7 +369,7 @@ def gen_description(llm, tool, tool_call, invoked_result):
     tool_desc = render_text_description(tool)
 
     # actual data
-    actual_data = invoked_result.head().to_markdown(index=False)
+    actual_data = df_description(invoked_result, unique_threshold=25, top_n_values=5)
 
     # final prompt
     desc = (
