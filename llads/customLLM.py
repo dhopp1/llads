@@ -424,74 +424,80 @@ class customLLM(LLM):
             dataframe = pd.DataFrame()
 
         ### create full runnable python script
-        # initial tool calls - imports
-        python_script = ""
+        try:
+            # initial tool calls - imports
+            python_script = ""
 
-        if modules is not None:
-            if not (isinstance(modules, list)):
-                modules = [modules]
+            if modules is not None:
+                if not (isinstance(modules, list)):
+                    modules = [modules]
 
-            for module in modules:
-                imports = get_module_imports(module)
-                imports = [
-                    _ for _ in imports if "langchain" not in _
-                ]  # exclude langchain imports
-                for import_str in imports:
-                    python_script += import_str + "\n"
+                for module in modules:
+                    imports = get_module_imports(module)
+                    imports = [
+                        _ for _ in imports if "langchain" not in _
+                    ]  # exclude langchain imports
+                    for import_str in imports:
+                        python_script += import_str + "\n"
 
-        python_script += "\n"
+            python_script += "\n"
 
-        # initial tool calls - function definitions
-        python_script += "### data call function definitions\n\n"
-        for tool in tools:
-            if tool.name in [_["name"] for _ in tool_result["tool_call"]]:
-                python_script += inspect.getsource(tool.func) + "\n"
+            # initial tool calls - function definitions
+            python_script += "### data call function definitions\n\n"
+            for tool in tools:
+                if tool.name in [_["name"] for _ in tool_result["tool_call"]]:
+                    python_script += inspect.getsource(tool.func) + "\n"
 
-        python_script += "### data call function definitions\n\n"
+            python_script += "### data call function definitions\n\n"
 
-        # actual function calls
-        python_script += "### raw data calls\n\ndata_dict = {}\n\n"
+            # actual function calls
+            python_script += "### raw data calls\n\ndata_dict = {}\n\n"
 
-        for i in range(len(tool_result["tool_call"])):
-            python_script += f"# function call {i+1}\n"
-            python_script += f"""data_dict["{tool_result["query_id"]}_{i}"] = {tool_result["tool_call"][i]["name"]}(**{tool_result["tool_call"][i]["arguments"]})\n\n"""
+            for i in range(len(tool_result["tool_call"])):
+                python_script += f"# function call {i+1}\n"
+                python_script += f"""data_dict["{tool_result["query_id"]}_{i}"] = {tool_result["tool_call"][i]["name"]}(**{tool_result["tool_call"][i]["arguments"]})\n\n"""
 
-        python_script += "### raw data calls\n\n"
+            python_script += "### raw data calls\n\n"
 
-        # llm pandas
-        python_script += "### Pandas data manipulation\n"
-        python_script += f"""{result["pd_code"]}\n\n"""
-        python_script += "### Pandas data manipulation\n\n"
+            # llm pandas
+            python_script += "### Pandas data manipulation\n"
+            python_script += f"""{result["pd_code"]}\n\n"""
+            python_script += "### Pandas data manipulation\n\n"
 
-        # visualization tool calls - function definitions
-        if not (use_free_plot):
-            python_script += "### visualization function definitions\n\n"
-            for plot_tool in plot_tools:
-                if plot_tool.name in [_["name"] for _ in plots["visualization_call"]]:
-                    python_script += inspect.getsource(plot_tool.func) + "\n"
-
-            python_script += "### visualization function definitions\n\n"
-
-        # actual visualization calls
-        python_script += "### visualization calls\n"
-
-        for i in range(len(plots["visualization_call"])):
-            python_script += f"# visualization call {i+1}\n"
+            # visualization tool calls - function definitions
             if not (use_free_plot):
-                python_script += f"""plot_{i+1} = {plots["visualization_call"][i]["name"]}(**{plots["visualization_call"][i]["arguments"]})\n\n"""
-            else:
-                python_script += f"""{plots["visualization_call"][i]}\n\n"""
+                python_script += "### visualization function definitions\n\n"
+                for plot_tool in plot_tools:
+                    if plot_tool.name in [
+                        _["name"] for _ in plots["visualization_call"]
+                    ]:
+                        python_script += inspect.getsource(plot_tool.func) + "\n"
 
-        python_script += "### visualization calls\n"
+                python_script += "### visualization function definitions\n\n"
 
-        python_script = f"""```py\n{python_script}\n```""".replace("@tool", "").replace(
-            "self._data", "data_dict"
-        )
-        python_script = re.sub(
-            r"(\S+?)_result\.csv",
-            lambda m: f"data_dict[{m.group(1)}_result']",
-            python_script,
-        ).replace("result']'", "result']")
+            # actual visualization calls
+            python_script += "### visualization calls\n"
+
+            for i in range(len(plots["visualization_call"])):
+                python_script += f"# visualization call {i+1}\n"
+                if not (use_free_plot):
+                    python_script += f"""plot_{i+1} = {plots["visualization_call"][i]["name"]}(**{plots["visualization_call"][i]["arguments"]})\n\n"""
+                else:
+                    python_script += f"""{plots["visualization_call"][i]}\n\n"""
+
+            python_script += "### visualization calls\n"
+
+            python_script = f"""```py\n{python_script}\n```""".replace(
+                "@tool", ""
+            ).replace("self._data", "data_dict")
+            python_script = re.sub(
+                r"(\S+?)_result\.csv",
+                lambda m: f"data_dict[{m.group(1)}_result']",
+                python_script,
+            ).replace("result']'", "result']")
+
+        except:
+            python_script = "error"
 
         return {
             "initial_prompt": prompt,
