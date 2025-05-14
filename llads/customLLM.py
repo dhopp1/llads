@@ -13,7 +13,6 @@ from openai import OpenAI
 from llads.tooling import (
     count_tokens,
     create_final_pandas_instructions,
-    get_module_imports,
     gen_plot_call,
     gen_tool_call,
 )
@@ -311,6 +310,7 @@ class customLLM(LLM):
         addt_context_gen_plot_call=None,
         n_retries=3,
         modules=None,
+        prior_query_id=None,
         quiet=False,
     ):
         "run the entire pipeline from one function"
@@ -425,30 +425,36 @@ class customLLM(LLM):
 
         ### create full runnable python script
         try:
-            # initial tool calls - imports
             python_script = ""
 
-            if modules is not None:
+            # adding full text of modules
+            if modules is not None and prior_query_id is None:
+                python_script += (
+                    "### data and visualization call function definitions\n\n"
+                )
+
                 if not (isinstance(modules, list)):
                     modules = [modules]
 
                 for module in modules:
-                    imports = get_module_imports(module)
-                    imports = [
-                        _ for _ in imports if "langchain" not in _
-                    ]  # exclude langchain imports
-                    for import_str in imports:
-                        python_script += import_str + "\n"
+                    module_text = inspect.getsource(module).splitlines()
+                    module_text = [_ for _ in module_text if "langchain" not in _]
+                    module_text = "\n".join(module_text)
 
-            python_script += "\n"
+                    python_script += module_text + "\n\n"
+
+                python_script += (
+                    "### data and visualization call function definitions\n\n"
+                )
 
             # initial tool calls - function definitions
-            python_script += "### data call function definitions\n\n"
-            for tool in tools:
-                if tool.name in [_["name"] for _ in tool_result["tool_call"]]:
-                    python_script += inspect.getsource(tool.func) + "\n"
+            if modules is None:
+                python_script += "### data call function definitions\n\n"
+                for tool in tools:
+                    if tool.name in [_["name"] for _ in tool_result["tool_call"]]:
+                        python_script += inspect.getsource(tool.func) + "\n"
 
-            python_script += "### data call function definitions\n\n"
+                python_script += "### data call function definitions\n\n"
 
             # actual function calls
             python_script += "### raw data calls\n\ndata_dict = {}\n\n"
@@ -465,15 +471,16 @@ class customLLM(LLM):
             python_script += "### Pandas data manipulation\n\n"
 
             # visualization tool calls - function definitions
-            if not (use_free_plot):
-                python_script += "### visualization function definitions\n\n"
-                for plot_tool in plot_tools:
-                    if plot_tool.name in [
-                        _["name"] for _ in plots["visualization_call"]
-                    ]:
-                        python_script += inspect.getsource(plot_tool.func) + "\n"
+            if modules is None:
+                if not (use_free_plot):
+                    python_script += "### visualization function definitions\n\n"
+                    for plot_tool in plot_tools:
+                        if plot_tool.name in [
+                            _["name"] for _ in plots["visualization_call"]
+                        ]:
+                            python_script += inspect.getsource(plot_tool.func) + "\n"
 
-                python_script += "### visualization function definitions\n\n"
+                    python_script += "### visualization function definitions\n\n"
 
             # actual visualization calls
             python_script += "### visualization calls\n"
@@ -543,6 +550,7 @@ class customLLM(LLM):
                 addt_context_gen_final_commentary=addt_context_gen_final_commentary,
                 addt_context_gen_plot_call=addt_context_gen_plot_call,
                 modules=modules,
+                prior_query_id=prior_query_id,
                 quiet=quiet,
             )
         else:
@@ -597,6 +605,8 @@ class customLLM(LLM):
                 addt_context_explain_pandas_df=addt_context_explain_pandas_df,
                 addt_context_gen_final_commentary=addt_context_gen_final_commentary,
                 addt_context_gen_plot_call=addt_context_gen_plot_call,
+                modules=modules,
+                prior_query_id=prior_query_id,
                 quiet=quiet,
             )
 

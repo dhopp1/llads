@@ -16,24 +16,6 @@ today = datetime.date.today()
 date_string = today.strftime("%Y-%m-%d")
 
 
-def get_module_imports(module):
-    """
-    Extract import statements from a module's source code.
-    """
-    imports = []
-    try:
-        source_lines = inspect.getsource(module).splitlines()
-        for line in source_lines:
-            line = line.strip()
-            if line.startswith("import ") or line.startswith("from "):
-                # Basic filtering to exclude comments and docstrings
-                if not line.startswith("#") and not line.startswith('"""') and not line.startswith("'''"):
-                    imports.append(line)
-    except TypeError:
-        print(f"Could not get source code for module: {module.__name__}")
-    return imports
-
-
 def df_description(
     df,
     unique_threshold=25,
