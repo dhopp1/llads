@@ -17,6 +17,8 @@ You can use any LLM that works with the OpenAI API syntax, including a local Lla
 import pandas as pd
 
 from llads.customLLM import customLLM
+import llads.tools # optionally import the module where your tools are to get proper imports for full runnable Python script generation
+import llads.visualizations
 from llads.tools import get_world_bank_gdp_data # this is a custom tool included as an example. You can define and pass your own tools
 from llads.visualizations import gen_plot # this is a line/bar plot visualization tool included as an example. You can define and pass your own visualization tools
 
@@ -45,6 +47,7 @@ results = llm.chat(
 	validate=True, # if True, the LLM will perform an additional validation step on its commentary
 	use_free_plot=False, # if False, the LLM will have to use one of the plot_tools, if True, it will be free to make its own matplotlib plot
 	prior_query_id=None, # None, because this is the first query in the chat history
+	modules = [llads.tools, llads.visualizations], # optionally pass the modules where your tool and plot functions are to get proper imports for full runnable python script
 )
 
 # follow-up question
@@ -98,6 +101,7 @@ The `chat()` function will produce a dictionary with the following values:
 	- _n\_tokens\_output_: The number of tokens consumed by the LLM for output in this step
 	- _seconds\_taken_: How many seconds this step took to run
 - _context\_rich\_prompt_: The prompt passed to the LLM containing the prior context. Empty string if it's the first question in the chat.
+- _python\_script_: The full, self-contained, runnable Python script that duplicates the entire pipeline.
 
 ## Explanation of steps/chain
 Note that for each step in the chain, you can provide additional context information specifically for that step by passing a string to any of the following arguments in the `chat()` function:
