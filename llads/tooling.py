@@ -110,8 +110,11 @@ def df_description(
                     )  # value_counts handles NaNs by default
                     # Format top counts, escaping backticks in keys (values)
                     formatted_counts = [
-                        f"`{str(k).replace('`', '\\`')}` ({v})"
+                        f"`{k_escaped}` ({v})"
                         for k, v in top_counts.items()
+                        for k_escaped in [
+                            str(k).replace("`", "\\`")
+                        ]  # Perform the replacement here
                     ]
                     details = (
                         f"String/Object ({num_unique} unique values. "
@@ -169,8 +172,11 @@ def df_description(
                 top_counts = col_data.value_counts().head(top_n_values)
                 # Format top counts, escaping backticks in keys (categories)
                 formatted_counts = [
-                    f"`{str(k).replace('`', '\\`')}` ({v})"
+                    f"`{k_escaped}` ({v})"
                     for k, v in top_counts.items()
+                    for k_escaped in [
+                        str(k).replace("`", "\\`")
+                    ]  # Perform the replacement here
                 ]
                 details = (
                     f"Categorical ({num_categories} categories. "
@@ -362,7 +368,14 @@ def gen_plot_call(llm, tools, tool_result, prompt):
     return output
 
 
-def gen_description(llm, tool, tool_call, invoked_result):
+def gen_description(
+    llm,
+    tool,
+    tool_call,
+    invoked_result,
+    data_desc_unique_threshold=25,
+    data_desc_top_n_values=10,
+):
     "generate a full description of a single tool and result"
     # metadata
     name = "`" + tool_call["name"] + "`"
@@ -370,7 +383,11 @@ def gen_description(llm, tool, tool_call, invoked_result):
     tool_desc = "\n\n```\n\n" + render_text_description(tool) + "\n\n```\n\n"
 
     # actual data
-    actual_data = df_description(invoked_result, unique_threshold=25, top_n_values=5)
+    actual_data = df_description(
+        invoked_result,
+        unique_threshold=data_desc_unique_threshold,
+        top_n_values=data_desc_top_n_values,
+    )
 
     # final prompt
     desc = (
@@ -389,7 +406,14 @@ def gen_description(llm, tool, tool_call, invoked_result):
     return desc
 
 
-def create_data_dictionary(llm, data, tools, tool_result):
+def create_data_dictionary(
+    llm,
+    data,
+    tools,
+    tool_result,
+    data_desc_unique_threshold=25,
+    data_desc_top_n_values=10,
+):
     "given the result of a tool call, create data dictionary so the LLM can access the resulting data"
 
     # creating the data dictionary
@@ -407,6 +431,8 @@ def create_data_dictionary(llm, data, tools, tool_result):
             [_ for _ in tools if _.name == tool_result["tool_call"][i]["name"]],
             tool_result["tool_call"][i],
             tool_result["invoked_result"][i],
+            data_desc_unique_threshold=data_desc_unique_threshold,
+            data_desc_top_n_values=data_desc_top_n_values,
         )
 
         instructions += (
@@ -422,9 +448,23 @@ def create_data_dictionary(llm, data, tools, tool_result):
     return instructions
 
 
-def create_final_pandas_instructions(llm, tools, tool_result, prompt):
+def create_final_pandas_instructions(
+    llm,
+    tools,
+    tool_result,
+    prompt,
+    data_desc_unique_threshold=25,
+    data_desc_top_n_values=10,
+):
     "create final prompt for the LLM to manipulate the Pandas data"
-    data_dict_desc = create_data_dictionary(llm, llm._data, tools, tool_result)
+    data_dict_desc = create_data_dictionary(
+        llm,
+        llm._data,
+        tools,
+        tool_result,
+        data_desc_unique_threshold=data_desc_unique_threshold,
+        data_desc_top_n_values=data_desc_top_n_values,
+    )
 
     instructions = (
         llm.system_prompts.loc[

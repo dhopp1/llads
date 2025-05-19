@@ -82,7 +82,15 @@ class customLLM(LLM):
         "determine which tools to call and call them"
         return gen_tool_call(self, tools, prompt, addt_context)
 
-    def gen_pandas_df(self, tools, tool_result, prompt, addt_context=None):
+    def gen_pandas_df(
+        self,
+        tools,
+        tool_result,
+        prompt,
+        data_desc_unique_threshold=25,
+        data_desc_top_n_values=10,
+        addt_context=None,
+    ):
         "execute pandas manipulations to answer prompt"
         start_time = time.time()
 
@@ -90,7 +98,14 @@ class customLLM(LLM):
             prompt += addt_context
 
         try:
-            result = create_final_pandas_instructions(self, tools, tool_result, prompt)
+            result = create_final_pandas_instructions(
+                self,
+                tools,
+                tool_result,
+                prompt,
+                data_desc_unique_threshold=data_desc_unique_threshold,
+                data_desc_top_n_values=data_desc_top_n_values,
+            )
 
             n_tokens_input = count_tokens(result["pd_instructions"])
 
@@ -311,6 +326,8 @@ class customLLM(LLM):
         n_retries=3,
         modules=None,
         prior_query_id=None,
+        data_desc_unique_threshold=25,
+        data_desc_top_n_values=10,
         quiet=False,
     ):
         "run the entire pipeline from one function"
@@ -532,6 +549,8 @@ class customLLM(LLM):
         addt_context_gen_final_commentary=None,
         addt_context_gen_plot_call=None,
         modules=None,
+        data_desc_unique_threshold=25,  # maximum number of cardinal entries in a column to show all options in the PD data description step
+        data_desc_top_n_values=10,  # if maximum cardinal entries reached, top how many to show to give idea of values in columns
         quiet=False,
     ):
         "same as gen_complete_response, but if given a list of complete responses, generate a followup context-rich prompt given a new prompt first"
@@ -551,6 +570,8 @@ class customLLM(LLM):
                 addt_context_gen_plot_call=addt_context_gen_plot_call,
                 modules=modules,
                 prior_query_id=prior_query_id,
+                data_desc_unique_threshold=data_desc_unique_threshold,
+                data_desc_top_n_values=data_desc_top_n_values,
                 quiet=quiet,
             )
         else:
@@ -607,6 +628,8 @@ class customLLM(LLM):
                 addt_context_gen_plot_call=addt_context_gen_plot_call,
                 modules=modules,
                 prior_query_id=prior_query_id,
+                data_desc_unique_threshold=data_desc_unique_threshold,
+                data_desc_top_n_values=data_desc_top_n_values,
                 quiet=quiet,
             )
 
