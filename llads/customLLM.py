@@ -365,6 +365,8 @@ class customLLM(LLM):
                 tools=tools,
                 tool_result=tool_result,
                 prompt=prompt,
+                data_desc_unique_threshold=data_desc_unique_threshold,
+                data_desc_top_n_values=data_desc_top_n_values,
                 addt_context=addt_context_gen_pandas_df,
             )
             if result["pd_code"] != "error":
