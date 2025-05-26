@@ -323,6 +323,10 @@ class customLLM(LLM):
         addt_context_explain_pandas_df=None,
         addt_context_gen_final_commentary=None,
         addt_context_gen_plot_call=None,
+        run_gen_pandas_df=True,
+        run_explain_pandas_df=True,
+        run_gen_final_commentary=True,
+        run_gen_plot=True,
         n_retries=3,
         modules=None,
         prior_query_id=None,
@@ -357,84 +361,88 @@ class customLLM(LLM):
                 attempts += 1
 
         # pandas manipulation
-        if not (quiet):
-            print("Transforming the data...")
-        attempts = 0
-        while attempts < n_retries:
-            result = self.gen_pandas_df(
-                tools=tools,
-                tool_result=tool_result,
-                prompt=prompt,
-                data_desc_unique_threshold=data_desc_unique_threshold,
-                data_desc_top_n_values=data_desc_top_n_values,
-                addt_context=addt_context_gen_pandas_df,
-            )
-            if result["pd_code"] != "error":
-                attempts = n_retries
-            else:
-                attempts += 1
+        if run_gen_pandas_df:
+            if not (quiet):
+                print("Transforming the data...")
+            attempts = 0
+            while attempts < n_retries:
+                result = self.gen_pandas_df(
+                    tools=tools,
+                    tool_result=tool_result,
+                    prompt=prompt,
+                    data_desc_unique_threshold=data_desc_unique_threshold,
+                    data_desc_top_n_values=data_desc_top_n_values,
+                    addt_context=addt_context_gen_pandas_df,
+                )
+                if result["pd_code"] != "error":
+                    attempts = n_retries
+                else:
+                    attempts += 1
 
         # explanation of pandas manipulation
-        if not (quiet):
-            print("Explaining the transformations...")
-        attempts = 0
-        while attempts < n_retries:
-            explanation = self.explain_pandas_df(
-                result, prompt=prompt, addt_context=addt_context_explain_pandas_df
-            )
-            if explanation != "error":
-                attempts = n_retries
-            else:
-                attempts += 1
+        if run_explain_pandas_df:
+            if not (quiet):
+                print("Explaining the transformations...")
+            attempts = 0
+            while attempts < n_retries:
+                explanation = self.explain_pandas_df(
+                    result, prompt=prompt, addt_context=addt_context_explain_pandas_df
+                )
+                if explanation != "error":
+                    attempts = n_retries
+                else:
+                    attempts += 1
 
         # commentary on the result
-        if not (quiet):
-            print("Generating commentary...")
-        attempts = 0
-        while attempts < n_retries:
-            commentary = self.gen_final_commentary(
-                tool_result,
-                prompt=prompt,
-                validate=validate,
-                addt_context=addt_context_gen_final_commentary,
-            )
-            if commentary != "error":
-                attempts = n_retries
-            else:
-                attempts += 1
+        if run_gen_final_commentary:
+            if not (quiet):
+                print("Generating commentary...")
+            attempts = 0
+            while attempts < n_retries:
+                commentary = self.gen_final_commentary(
+                    tool_result,
+                    prompt=prompt,
+                    validate=validate,
+                    addt_context=addt_context_gen_final_commentary,
+                )
+                if commentary != "error":
+                    attempts = n_retries
+                else:
+                    attempts += 1
 
         # generating a plot
-        if not (quiet):
-            print("Generating a visualization...")
-        attempts = 0
-        while attempts < n_retries:
-            if use_free_plot:
-                plots = self.gen_free_plot(
-                    tool_result=tool_result,
-                    prompt=prompt,
-                    addt_context=addt_context_gen_plot_call,
-                )
-            else:
-                plots = self.gen_plot_call(
-                    tools=plot_tools,
-                    tool_result=tool_result,
-                    prompt=prompt,
-                    addt_context=addt_context_gen_plot_call,
-                )
-            if isinstance(plots["invoked_result"], list):
-                if isinstance(plots["invoked_result"][0], str):
-                    if plots["invoked_result"][0] != "error":
-                        condition = True
+        if run_gen_plot:
+            if not (quiet):
+                print("Generating a visualization...")
+            attempts = 0
+            while attempts < n_retries:
+                if use_free_plot:
+                    plots = self.gen_free_plot(
+                        tool_result=tool_result,
+                        prompt=prompt,
+                        addt_context=addt_context_gen_plot_call,
+                    )
+                else:
+                    plots = self.gen_plot_call(
+                        tools=plot_tools,
+                        tool_result=tool_result,
+                        prompt=prompt,
+                        addt_context=addt_context_gen_plot_call,
+                    )
+                if isinstance(plots["invoked_result"], list):
+                    if isinstance(plots["invoked_result"][0], str):
+                        if plots["invoked_result"][0] != "error":
+                            condition = True
+                        else:
+                            condition = False
                     else:
-                        condition = False
+                        condition = True
                 else:
                     condition = True
-            else:
-                condition = True
-            if condition:
-                attempts = n_retries
-            else:
-                attempts += 1
+                if condition:
+                    attempts = n_retries
+                else:
+                    attempts += 1
 
         # final dataframe:
         try:
@@ -485,56 +493,77 @@ class customLLM(LLM):
             python_script += "### raw data calls\n\n"
 
             # llm pandas
-            python_script += "### Pandas data manipulation\n"
-            python_script += f"""{result["pd_code"]}\n\n"""
-            python_script += "### Pandas data manipulation\n\n"
+            if run_gen_pandas_df:
+                python_script += "### Pandas data manipulation\n"
+                python_script += f"""{result["pd_code"]}\n\n"""
+                python_script += "### Pandas data manipulation\n\n"
 
             # visualization tool calls - function definitions
-            if modules is None:
-                if not (use_free_plot):
-                    python_script += "### visualization function definitions\n\n"
-                    for plot_tool in plot_tools:
-                        if plot_tool.name in [
-                            _["name"] for _ in plots["visualization_call"]
-                        ]:
-                            python_script += inspect.getsource(plot_tool.func) + "\n"
+            if run_gen_plot:
+                if modules is None:
+                    if not (use_free_plot):
+                        python_script += "### visualization function definitions\n\n"
+                        for plot_tool in plot_tools:
+                            if plot_tool.name in [
+                                _["name"] for _ in plots["visualization_call"]
+                            ]:
+                                python_script += (
+                                    inspect.getsource(plot_tool.func) + "\n"
+                                )
 
-                    python_script += "### visualization function definitions\n\n"
+                        python_script += "### visualization function definitions\n\n"
 
-            # actual visualization calls
-            python_script += "### visualization calls\n"
+                # actual visualization calls
+                python_script += "### visualization calls\n"
 
-            for i in range(len(plots["visualization_call"])):
-                python_script += f"# visualization call {i+1}\n"
-                if not (use_free_plot):
-                    python_script += f"""plot_{i+1} = {plots["visualization_call"][i]["name"]}(**{plots["visualization_call"][i]["arguments"]})\n\n"""
-                else:
-                    python_script += f"""{plots["visualization_call"][i]}\n\n"""
+                for i in range(len(plots["visualization_call"])):
+                    python_script += f"# visualization call {i+1}\n"
+                    if not (use_free_plot):
+                        python_script += f"""plot_{i+1} = {plots["visualization_call"][i]["name"]}(**{plots["visualization_call"][i]["arguments"]})\n\n"""
+                    else:
+                        python_script += f"""{plots["visualization_call"][i]}\n\n"""
 
-            python_script += "### visualization calls\n"
+                python_script += "### visualization calls\n"
 
-            python_script = f"""```py\n{python_script}\n```""".replace(
-                "@tool", ""
-            ).replace("self._data", "data_dict")
-            python_script = re.sub(
-                r"(\S+?)_result\.csv",
-                lambda m: f"data_dict[{m.group(1)}_result']",
-                python_script,
-            ).replace("result']'", "result']")
+                python_script = f"""```py\n{python_script}\n```""".replace(
+                    "@tool", ""
+                ).replace("self._data", "data_dict")
+                python_script = re.sub(
+                    r"(\S+?)_result\.csv",
+                    lambda m: f"data_dict[{m.group(1)}_result']",
+                    python_script,
+                ).replace("result']'", "result']")
 
         except:
             python_script = "error"
 
-        return {
-            "initial_prompt": prompt,
-            "tool_result": tool_result,
-            "pd_code": result,
-            "dataset": dataframe,
-            "explanation": explanation,
-            "commentary": commentary,
-            "plots": plots,
-            "python_script": python_script,
-        }
+        # final return dictionary
+        final_dict = {}
+        final_dict["initial_prompt"] = prompt
+        final_dict["tool_result"] = tool_result
+        try:
+            final_dict["pd_code"] = result
+        except:
+            final_dict["pd_code"] = None
+        try:
+            final_dict["dataset"] = dataframe
+        except:
+            final_dict["dataset"] = None
+        try:
+            final_dict["explanation"] = explanation
+        except:
+            final_dict["explanation"] = None
+        try:
+            final_dict["commentary"] = commentary
+        except:
+            final_dict["commentary"] = None
+        try:
+            final_dict["plots"] = plots
+        except:
+            final_dict["plots"] = None
+        final_dict["python_script"] = python_script
+
+        return final_dict
 
     def chat(
         self,
@@ -550,6 +579,10 @@ class customLLM(LLM):
         addt_context_explain_pandas_df=None,
         addt_context_gen_final_commentary=None,
         addt_context_gen_plot_call=None,
+        run_gen_pandas_df=True,
+        run_explain_pandas_df=True,
+        run_gen_final_commentary=True,
+        run_gen_plot=True,
         modules=None,
         data_desc_unique_threshold=25,  # maximum number of cardinal entries in a column to show all options in the PD data description step
         data_desc_top_n_values=10,  # if maximum cardinal entries reached, top how many to show to give idea of values in columns
@@ -570,6 +603,10 @@ class customLLM(LLM):
                 addt_context_explain_pandas_df=addt_context_explain_pandas_df,
                 addt_context_gen_final_commentary=addt_context_gen_final_commentary,
                 addt_context_gen_plot_call=addt_context_gen_plot_call,
+                run_gen_pandas_df=run_gen_pandas_df,
+                run_explain_pandas_df=run_explain_pandas_df,
+                run_gen_final_commentary=run_gen_final_commentary,
+                run_gen_plot=run_gen_plot,
                 modules=modules,
                 prior_query_id=prior_query_id,
                 data_desc_unique_threshold=data_desc_unique_threshold,
@@ -607,12 +644,22 @@ class customLLM(LLM):
                     .format(
                         ex_num=ex_num,
                         initial_prompt=complete_responses[i]["initial_prompt"],
-                        data_desc=complete_responses[i]["pd_code"]["data_desc"],
-                        pd_code=complete_responses[i]["pd_code"]["pd_code"],
+                        data_desc=(
+                            complete_responses[i]["pd_code"]["data_desc"]
+                            if complete_responses[i]["pd_code"] is not None
+                            else None
+                        ),
+                        pd_code=(
+                            complete_responses[i]["pd_code"]["pd_code"]
+                            if complete_responses[i]["pd_code"] is not None
+                            else None
+                        ),
                         commentary=complete_responses[i]["commentary"],
-                        visualization_code=complete_responses[i]["plots"][
-                            "visualization_call"
-                        ][0],
+                        visualization_code=(
+                            complete_responses[i]["plots"]["visualization_call"][0]
+                            if complete_responses[i]["plots"] is not None
+                            else None
+                        ),
                     )
                 )
 
@@ -628,6 +675,10 @@ class customLLM(LLM):
                 addt_context_explain_pandas_df=addt_context_explain_pandas_df,
                 addt_context_gen_final_commentary=addt_context_gen_final_commentary,
                 addt_context_gen_plot_call=addt_context_gen_plot_call,
+                run_gen_pandas_df=run_gen_pandas_df,
+                run_explain_pandas_df=run_explain_pandas_df,
+                run_gen_final_commentary=run_gen_final_commentary,
+                run_gen_plot=run_gen_plot,
                 modules=modules,
                 prior_query_id=prior_query_id,
                 data_desc_unique_threshold=data_desc_unique_threshold,
