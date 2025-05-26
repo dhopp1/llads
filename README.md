@@ -121,6 +121,14 @@ Note that for each step in the chain, you can provide additional context informa
 
 If a `prior_query_id` is passed, at the very beginning of the pipeline the user's prompt will be augmented with the full context history of previous messages, including tool calls, data manipulation steps, commentary provided, and visualizations created.
 
+You can run only some of the steps by passing `False` to any of the below parameters for the `chat()` function, `gen_tool_call` is the only step that must be run:
+
+	- run_gen_pandas_df
+	- run_explain_pandas_df
+	- run_gen_final_commentary
+	- run_gen_plot
+
+
 ## Defining your own datasets/tools
 The library contains the `get_world_bank_gdp_data` function as an example. To make additional data available to the LLM, you can define your own tools. For example, say we wanted to add a simple addition tool:
 
